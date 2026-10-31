@@ -24,12 +24,12 @@ def download_football_data():
         df = df[['HomeTeam', 'AwayTeam', 'FTHG', 'FTAG']].dropna()
         return df
     except Exception:
-        # Fallback dataset with clean numbers for safety
+        # FIX: Hardened fallback array with clean, executable baseline numbers
         return pd.DataFrame({
             'HomeTeam': ['Arsenal', 'Chelsea', 'Man City', 'Aston Villa', 'Liverpool', 'Tottenham', 'Newcastle', 'Man United', 'West Ham', 'Everton', 'Fulham', 'Brighton', 'Bournemouth'],
             'AwayTeam': ['Chelsea', 'Man City', 'Aston Villa', 'Arsenal', 'Tottenham', 'Liverpool', 'Man United', 'Newcastle', 'Everton', 'West Ham', 'Brighton', 'Fulham', 'Brentford'],
-            'FTHG':, 
-            'FTAG': [1, 1, 2, 0, 1, 2, 1, 1, 0, 2, 1, 1, 1]
+            'FTHG': [1, 2, 0, 1, 3, 1, 2, 0, 1, 1, 0, 2, 1], 
+            'FTAG': [1, 0, 2, 1, 1, 2, 0, 1, 1, 0, 2, 1, 1]
         })
 
 live_data = download_football_data()
@@ -93,7 +93,6 @@ if live_data is not None:
         st.markdown("### Step 1: Input the 13 SportyBet Jackpot Slots Sequentially")
         
         coupon_fixtures = []
-        # FIX: Expanded loop range to build exactly 13 input slots on your screen
         for i in range(13):
             c1, c2, c3, c4, c5 = st.columns(5)
             h_sel = c1.selectbox(f"Slot #{i+1} Home", options=team_names, index=min(i, len(team_names)-1), key=f"h_{i}")
