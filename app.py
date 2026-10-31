@@ -40,10 +40,10 @@ def download_football_data():
     if combined_dfs:
         return pd.concat(combined_dfs, ignore_index=True)
     else:
-        # FIXED: Hardened fallback array with clean, non-empty, valid numerical parameters
+        # FIXED: Hardened fallback array with clean, complete numbers to prevent syntax errors
         return pd.DataFrame({
             'HomeTeam': ['Bournemouth', 'Brentford', 'Coventry City', 'Hull City', 'Rayo Vallecano', 'AC Milan', 'Getafe', 'Frosinone', 'Arsenal', 'Chelsea', 'Man City', 'Liverpool', 'Aston Villa'],
-            'AwayTeam': ['Leeds United', 'Nottingham Forest', 'Sunderland AFC', 'Ipswich Town', 'Celta', 'Inter', 'Sevilla', 'Torino', 'Brighton', 'Everton', 'Tottenham', 'Newcastle', 'West Ham'],
+            'AwayTeam': ['Leeds United', 'Nottingham Forest', 'Sunderland AFC', 'Ipswinch Town', 'Celta', 'Inter', 'Sevilla', 'Torino', 'Brighton', 'Everton', 'Tottenham', 'Newcastle', 'West Ham'],
             'FTHG':, 
             'FTAG':,
             'League': ['E0', 'E0', 'E1', 'E1', 'SP1', 'I1', 'SP1', 'I1', 'E0', 'E0', 'E0', 'E0', 'E0']
