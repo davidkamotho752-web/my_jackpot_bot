@@ -24,12 +24,12 @@ def download_football_data():
         df = df[['HomeTeam', 'AwayTeam', 'FTHG', 'FTAG']].dropna()
         return df
     except Exception:
-        # FIX: Hardened fallback array with clean, executable statistical values
+        # Fixed clean, executable baseline numbers for fallback stability
         return pd.DataFrame({
             'HomeTeam': ['Arsenal', 'Chelsea', 'Man City', 'Aston Villa', 'Liverpool', 'Tottenham', 'Newcastle', 'Man United', 'West Ham', 'Everton', 'Fulham', 'Brighton'],
             'AwayTeam': ['Chelsea', 'Man City', 'Aston Villa', 'Arsenal', 'Tottenham', 'Liverpool', 'Man United', 'Newcastle', 'Everton', 'West Ham', 'Brighton', 'Fulham'],
             'FTHG':, 
-            'FTAG': [1, 1, 2, 0, 1, 1, 1, 3, 2, 1, 1, 2]
+            'FTAG': [1, 1, 1, 2, 1, 1, 0, 1, 2, 1, 0, 2]
         })
 
 live_data = download_football_data()
@@ -48,10 +48,10 @@ if live_data is not None:
         if len(h_games) == 0 or len(a_games) == 0:
             return 33.3, 33.3, 33.3, "X", 0.0
             
-        h_atk = h_games['FTHG'].ewm(span=min(len(h_games), 8)).mean().iloc[-1]
-        h_def = h_games['FTAG'].ewm(span=min(len(h_games), 8)).mean().iloc[-1]
-        a_atk = a_games['FTAG'].ewm(span=min(len(a_games), 8)).mean().iloc[-1]
-        a_def = a_games['FTHG'].ewm(span=min(len(a_games), 8)).mean().iloc[-1]
+        h_atk = home_games['FTHG'].ewm(span=min(len(home_games), 8)).mean().iloc[-1] if not home_games.empty else 1.0
+        h_def = home_games['FTAG'].ewm(span=min(len(home_games), 8)).mean().iloc[-1] if not home_games.empty else 1.0
+        a_atk = away_games['FTAG'].ewm(span=min(len(away_games), 8)).mean().iloc[-1] if not away_games.empty else 1.0
+        a_def = away_games['FTHG'].ewm(span=min(len(away_games), 8)).mean().iloc[-1] if not away_games.empty else 1.0
         
         exp_h = (max(h_atk, 0.1) / avg_h_goals) * (max(a_def, 0.1) / avg_h_goals) * avg_h_goals
         exp_a = (max(a_atk, 0.1) / avg_a_goals) * (max(h_def, 0.1) / avg_a_goals) * avg_a_goals
@@ -134,8 +134,6 @@ if live_data is not None:
                 })
                 
             st.dataframe(pd.DataFrame(slip_data), use_container_width=True, hide_index=True)
-            
-            # Auto-save full coupon configuration directly to tracking history state memory
             st.session_state.history_ledger = slip_data
             st.success("Slip copied to tracking memory. Navigate to the Forward Testing Ledger tab to audit outcomes.")
 
