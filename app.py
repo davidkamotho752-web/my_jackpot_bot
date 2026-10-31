@@ -4,9 +4,9 @@ import numpy as np
 import scipy.stats as stats
 
 # 1. HARDEN APPLICATION INFRASTRUCTURE
-st.set_page_config(page_title="SportyBet Full Slip Engine", layout="wide")
-st.title("Automated SportyBet Full Jackpot Slip Machine")
-st.caption("System Status: Production Operational | Mode: 12-Slot Sync")
+st.set_page_config(page_title="SportyBet 13-Slip Engine", layout="wide")
+st.title("Automated SportyBet 13-Slot Jackpot Slip Machine")
+st.caption("System Status: Production Operational | Mode: 13-Match Sync")
 st.markdown("---")
 
 # Initialize persistent tracking wallet
@@ -24,12 +24,12 @@ def download_football_data():
         df = df[['HomeTeam', 'AwayTeam', 'FTHG', 'FTAG']].dropna()
         return df
     except Exception:
-        # Fallback dataset with clean, executable baseline numbers for safety
+        # Fallback dataset with clean numbers for safety
         return pd.DataFrame({
-            'HomeTeam': ['Arsenal', 'Chelsea', 'Man City', 'Aston Villa', 'Liverpool', 'Tottenham', 'Newcastle', 'Man United', 'West Ham', 'Everton', 'Fulham', 'Brighton'],
-            'AwayTeam': ['Chelsea', 'Man City', 'Aston Villa', 'Arsenal', 'Tottenham', 'Liverpool', 'Man United', 'Newcastle', 'Everton', 'West Ham', 'Brighton', 'Fulham'],
-            'FTHG': [2, 1, 3, 1, 2, 0, 1, 2, 1, 0, 2, 1], 
-            'FTAG': [1, 1, 1, 2, 1, 2, 2, 0, 1, 1, 1, 2]
+            'HomeTeam': ['Arsenal', 'Chelsea', 'Man City', 'Aston Villa', 'Liverpool', 'Tottenham', 'Newcastle', 'Man United', 'West Ham', 'Everton', 'Fulham', 'Brighton', 'Bournemouth'],
+            'AwayTeam': ['Chelsea', 'Man City', 'Aston Villa', 'Arsenal', 'Tottenham', 'Liverpool', 'Man United', 'Newcastle', 'Everton', 'West Ham', 'Brighton', 'Fulham', 'Brentford'],
+            'FTHG':, 
+            'FTAG': [1, 1, 2, 0, 1, 2, 1, 1, 0, 2, 1, 1, 1]
         })
 
 live_data = download_football_data()
@@ -48,7 +48,6 @@ if live_data is not None:
         if len(h_games) == 0 or len(a_games) == 0:
             return 33.3, 33.3, 33.3, "X", 0.0
             
-        # FIX: Sourced clean rolling moving averages mapped to corrected h_games/a_games variables
         h_atk = h_games['FTHG'].ewm(span=min(len(h_games), 8)).mean().iloc[-1] if not h_games.empty else 1.0
         h_def = h_games['FTAG'].ewm(span=min(len(h_games), 8)).mean().iloc[-1] if not h_games.empty else 1.0
         a_atk = a_games['FTAG'].ewm(span=min(len(a_games), 8)).mean().iloc[-1] if not a_games.empty else 1.0
@@ -91,10 +90,11 @@ if live_data is not None:
     tab_gen, tab_track = st.tabs(["⚡ SportyBet Slip Builder", "📊 Forward Testing Ledger"])
     
     with tab_gen:
-        st.markdown("### Step 1: Input the 12 SportyBet Jackpot Slots Sequentially")
+        st.markdown("### Step 1: Input the 13 SportyBet Jackpot Slots Sequentially")
         
         coupon_fixtures = []
-        for i in range(12):
+        # FIX: Expanded loop range to build exactly 13 input slots on your screen
+        for i in range(13):
             c1, c2, c3, c4, c5 = st.columns(5)
             h_sel = c1.selectbox(f"Slot #{i+1} Home", options=team_names, index=min(i, len(team_names)-1), key=f"h_{i}")
             a_sel = c2.selectbox(f"Slot #{i+1} Away", options=[t for t in team_names if t != h_sel], index=min(i+1, len(team_names)-2), key=f"a_{i}")
