@@ -24,12 +24,12 @@ def download_football_data():
         df = df[['HomeTeam', 'AwayTeam', 'FTHG', 'FTAG']].dropna()
         return df
     except Exception:
-        # Fixed clean, executable baseline numbers for fallback stability
+        # Fallback dataset with clean, executable baseline numbers for safety
         return pd.DataFrame({
             'HomeTeam': ['Arsenal', 'Chelsea', 'Man City', 'Aston Villa', 'Liverpool', 'Tottenham', 'Newcastle', 'Man United', 'West Ham', 'Everton', 'Fulham', 'Brighton'],
             'AwayTeam': ['Chelsea', 'Man City', 'Aston Villa', 'Arsenal', 'Tottenham', 'Liverpool', 'Man United', 'Newcastle', 'Everton', 'West Ham', 'Brighton', 'Fulham'],
-            'FTHG':, 
-            'FTAG': [1, 1, 1, 2, 1, 1, 0, 1, 2, 1, 0, 2]
+            'FTHG': [2, 1, 3, 1, 2, 0, 1, 2, 1, 0, 2, 1], 
+            'FTAG': [1, 1, 1, 2, 1, 2, 2, 0, 1, 1, 1, 2]
         })
 
 live_data = download_football_data()
@@ -48,10 +48,11 @@ if live_data is not None:
         if len(h_games) == 0 or len(a_games) == 0:
             return 33.3, 33.3, 33.3, "X", 0.0
             
-        h_atk = home_games['FTHG'].ewm(span=min(len(home_games), 8)).mean().iloc[-1] if not home_games.empty else 1.0
-        h_def = home_games['FTAG'].ewm(span=min(len(home_games), 8)).mean().iloc[-1] if not home_games.empty else 1.0
-        a_atk = away_games['FTAG'].ewm(span=min(len(away_games), 8)).mean().iloc[-1] if not away_games.empty else 1.0
-        a_def = away_games['FTHG'].ewm(span=min(len(away_games), 8)).mean().iloc[-1] if not away_games.empty else 1.0
+        # FIX: Sourced clean rolling moving averages mapped to corrected h_games/a_games variables
+        h_atk = h_games['FTHG'].ewm(span=min(len(h_games), 8)).mean().iloc[-1] if not h_games.empty else 1.0
+        h_def = h_games['FTAG'].ewm(span=min(len(h_games), 8)).mean().iloc[-1] if not h_games.empty else 1.0
+        a_atk = a_games['FTAG'].ewm(span=min(len(a_games), 8)).mean().iloc[-1] if not a_games.empty else 1.0
+        a_def = a_games['FTHG'].ewm(span=min(len(a_games), 8)).mean().iloc[-1] if not a_games.empty else 1.0
         
         exp_h = (max(h_atk, 0.1) / avg_h_goals) * (max(a_def, 0.1) / avg_h_goals) * avg_h_goals
         exp_a = (max(a_atk, 0.1) / avg_a_goals) * (max(h_def, 0.1) / avg_a_goals) * avg_a_goals
@@ -71,17 +72,17 @@ if live_data is not None:
         matrix = np.clip(matrix, 0, None)
         matrix /= np.sum(matrix)
         
-        hw = np.sum(np.tril(matrix, -1))
-        dr = np.sum(np.diag(matrix))
-        aw = np.sum(np.triu(matrix, 1))
+        home_win_prob = np.sum(np.tril(matrix, -1))
+        draw_prob = np.sum(np.diag(matrix))
+        away_win_prob = np.sum(np.triu(matrix, 1))
         
-        ev_1 = (hw * odds_1) - 1
-        ev_x = (dr * odds_x) - 1
-        ev_2 = (aw * odds_2) - 1
+        ev_1 = (home_win_prob * odds_1) - 1
+        ev_x = (draw_prob * odds_x) - 1
+        ev_2 = (away_win_prob * odds_2) - 1
         
         ev_map = {"1": ev_1, "X": ev_x, "2": ev_2}
         pick = max(ev_map, key=ev_map.get)
-        return hw*100, dr*100, aw*100, pick, ev_map[pick]
+        return home_win_prob*100, draw_prob*100, away_win_prob*100, pick, ev_map[pick]
 
     # Display operational balance counters
     st.sidebar.metric("Simulated Practice Bankroll", f"KES {st.session_state.wallet_balance:,.2f}")
