@@ -8,7 +8,7 @@ import io
 # 1. HARDEN APPLICATION INFRASTRUCTURE
 st.set_page_config(page_title="SportyBet 13-Slip Engine", layout="wide")
 st.title("Automated SportyBet 13-Slot Jackpot Slip Machine")
-st.caption("System Status: Production Operational | Mode: Multi-League Sync")
+st.caption("System Status: Production Operational | Mode: Universal European Sync")
 st.markdown("---")
 
 # Initialize persistent tracking wallet
@@ -17,10 +17,11 @@ if 'wallet_balance' not in st.session_state:
 if 'history_ledger' not in st.session_state:
     st.session_state.history_ledger = []
 
-# 2. FIXED MULTI-LEAGUE DATA STREAM
+# 2. UNIVERSAL DYNAMIC LEAGUE FOOTPRINT SCRAPER
 @st.cache_data(ttl=3600)
 def download_football_data():
-    leagues = ['E0', 'E1', 'SP1', 'I1']
+    # FIXED: Added D1 (Germany), F1 (France), and SP2 (Spain 2) to capture every team on SportyBet
+    leagues = ['E0', 'E1', 'SP1', 'SP2', 'D1', 'F1', 'I1']
     combined_dfs = []
     
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
@@ -40,18 +41,19 @@ def download_football_data():
     if combined_dfs:
         return pd.concat(combined_dfs, ignore_index=True)
     else:
-        # FIXED: Explicitly typed static arrays to guarantee clean syntax interpretation
+        # Emergency static fallback array if internet drop cuts off server communication
         return pd.DataFrame({
             'HomeTeam': ['Bournemouth', 'Brentford', 'Coventry City', 'Hull City', 'Rayo Vallecano', 'AC Milan', 'Getafe', 'Frosinone', 'Arsenal', 'Chelsea', 'Man City', 'Liverpool', 'Aston Villa'],
             'AwayTeam': ['Leeds United', 'Nottingham Forest', 'Sunderland AFC', 'Ipswich Town', 'Celta', 'Inter', 'Sevilla', 'Torino', 'Brighton', 'Everton', 'Tottenham', 'Newcastle', 'West Ham'],
-            'FTHG': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1], 
-            'FTAG': [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            'League': ['E0', 'E0', 'E1', 'E1', 'SP1', 'I1', 'SP1', 'I1', 'E0', 'E0', 'E0', 'E0', 'E0']
+            'FTHG': [1]*13, 
+            'FTAG': [1]*13,
+            'League': ['E0']*13
         })
 
 live_data = download_football_data()
 
 if live_data is not None:
+    # Union home and away lists to verify both team names populate alphabetical dropdown elements cleanly
     team_names = sorted(list(set(live_data['HomeTeam'].unique()).union(set(live_data['AwayTeam'].unique()))))
     
     # 3. MATH ENGINE CORE WITH LEAGUE PARAMETER ISOLATION
