@@ -13,7 +13,7 @@ st.markdown("---")
 
 # Initialize persistent tracking wallet
 if 'wallet_balance' not in st.session_state:
-    st.session_state.wallet_balance = 10000.00
+    st.session_state.wallet_balance = 2000.00
 if 'history_ledger' not in st.session_state:
     st.session_state.history_ledger = []
 
