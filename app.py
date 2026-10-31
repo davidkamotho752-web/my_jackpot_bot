@@ -53,11 +53,12 @@ def download_football_data():
     if combined_dfs:
         return pd.concat(combined_dfs, ignore_index=True)
     else:
+        # FIXED: Populated valid numerical fallback parameters to prevent structural syntax crashes
         return pd.DataFrame({
             'HomeTeam': ['Bournemouth', 'Brentford', 'Coventry', 'Hull', 'Rayo Vallecano', 'AC Milan', 'Getafe', 'Arsenal', 'Chelsea', 'Union Berlin', 'Paris SG', 'Atletico Madrid', 'Real Sociedad'],
             'AwayTeam': ['Leeds', 'Nottm Forest', 'Sunderland', 'Ipswich', 'Celta', 'Inter Milan', 'Sevilla', 'Brighton', 'Everton', 'Cologne', 'Monaco', 'Elche', 'Valencia'],
-            'FTHG':, 
-            'FTAG':,
+            'FTHG': [1.0] * 13, 
+            'FTAG': [1.0] * 13,
             'FTR': ['D'] * 13,
             'League': ['E0', 'E0', 'E1', 'E1', 'SP1', 'I1', 'SP1', 'E0', 'E0', 'D1', 'F1', 'SP1', 'SP1']
         })
@@ -176,20 +177,22 @@ if live_data is not None:
             
             st.markdown("---")
             st.markdown("### 🤖 Autonomous Flashscore-Style Auto-Settlement")
-            st.markdown("Click the button below after the matches finish playing. The tool will scan the live network data feeds, extract the real outcomes, and process your simulated balance automatically.")
             
             if st.button("🔄 Execute Live Auto-Settlement Engine"):
                 updated_count = 0
                 for match in st.session_state.history_ledger:
                     if match["Result"] == "Pending":
-                        # Query the live results data stream for matching results
                         real_match = live_data[(live_data['HomeTeam'] == match['HomeTeam']) & (live_data['AwayTeam'] == match['AwayTeam'])]
                         if not real_match.empty:
                             raw_outcome = real_match['FTR'].iloc[-1]
-                            # Map database markers back to standard 1X2 entries
                             outcome_map = {'H': '1', 'D': 'X', 'A': '2'}
                             true_result = outcome_map.get(raw_outcome, 'X')
                             
                             match["Result"] = f"Settled: [{true_result}]"
                             active_stake = float(match["Kelly Stake"])
                             active_odds = float(match["Odds"])
+                            
+                            if match["Pick"] == true_result:
+                                profit = active_stake * (active_odds - 1)
+                                st.session_state.wallet_balance += profit
+                            else:
