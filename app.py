@@ -6,9 +6,9 @@ import requests
 import io
 
 # 1. HARDEN APPLICATION INFRASTRUCTURE
-st.set_page_config(page_title="SportyBet 13-Slip Engine", layout="wide")
-st.title("Automated SportyBet 13-Slot Jackpot Slip Machine")
-st.caption("System Status: Production Operational | Mode: Autonomous Real-Time Ingestion")
+st.set_page_config(page_title="SportyBet Global 13-Slip Engine", layout=True)
+st.title("Omnipresent SportyBet 13-Slot Jackpot Slip Machine")
+st.caption("System Status: Production Operational | Mode: Universal 19-League Global Sync")
 st.markdown("---")
 
 # Initialize persistent tracking wallet
@@ -17,35 +17,49 @@ if 'wallet_balance' not in st.session_state:
 if 'history_ledger' not in st.session_state:
     st.session_state.history_ledger = []
 
-# 2. UNIVERSAL DYNAMIC LEAGUE FOOTPRINT SCRAPER WITH SPORTYBET DICTIONARY MAPPING
+# 2. UNIVERSAL DYNAMIC LEAGUE FOOTPRINT SCRAPER
 @st.cache_data(ttl=3600)
 def download_football_data():
-    leagues = ['E0', 'E1', 'SP1', 'SP2', 'D1', 'F1', 'I1']
+    # FIXED: Comprehensive array tracking all available tier-1 and tier-2 historical files
+    leagues = [
+        'E0', 'E1', 'E2', 'E3', 'EC',  # England (Premier, Champ, L1, L2, National)
+        'SP1', 'SP2',                  # Spain (La Liga, Segunda)
+        'D1', 'D2',                    # Germany (Bundesliga 1 & 2)
+        'I1', 'I2',                    # Italy (Serie A & B)
+        'F1', 'F2',                    # France (Ligue 1 & 2)
+        'N1', 'B1', 'P1', 'T1', 'G1',  # Netherlands, Belgium, Portugal, Turkey, Greece
+        'SC0', 'SC1'                   # Scotland (Premiership, Championship)
+    ]
     combined_dfs = []
-    
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     
-    team_name_mapper = {
-        'Ath Madrid': 'Atletico Madrid', 'Ath Bilbao': 'Athletic Bilbao',
-        'Sociedad': 'Real Sociedad', 'Celta Vigo': 'Celta',
-        'Espanol': 'Espanyol', 'Vallecano': 'Rayo Vallecano',
-        'Un Berlin': 'Union Berlin', 'Koln': 'Cologne',
-        'Paris SG': 'Paris SG', 'PSG': 'Paris SG',
-        'Monaco': 'Monaco', 'Milan': 'AC Milan', 'Inter': 'Inter Milan'
-    }
+    # Advanced data cleaner to cross-match naming variations natively
+    def clean_team_string(name):
+        if not isinstance(name, str):
+            return name
+        mapping = {
+            'Ath Madrid': 'Atletico Madrid', 'Ath Bilbao': 'Athletic Bilbao',
+            'Sociedad': 'Real Sociedad', 'Celta Vigo': 'Celta',
+            'Espanol': 'Espanyol', 'Vallecano': 'Rayo Vallecano',
+            'Un Berlin': 'Union Berlin', 'Koln': 'Cologne',
+            'Paris SG': 'Paris SG', 'PSG': 'Paris SG',
+            'Milan': 'AC Milan', 'Inter': 'Inter Milan',
+            'Torimo': 'Torino', 'SportyBet CP': 'SportyBet CP'
+        }
+        return mapping.get(name, name).strip()
     
     for lg in leagues:
-        # FIXED: Mapped explicit path structure to fetch files cleanly from active databases
         url = f"https://football-data.co.uk{lg}.csv"
         try:
             response = requests.get(url, headers=headers, timeout=10)
             if response.status_code == 200:
                 df = pd.read_csv(io.StringIO(response.text))
-                df = df[['HomeTeam', 'AwayTeam', 'FTHG', 'FTAG', 'FTR']].dropna()
+                # Protect database structure from unexpected column shifts
+                needed = ['HomeTeam', 'AwayTeam', 'FTHG', 'FTAG', 'FTR']
+                df = df[[c for col in needed if col in df.columns]].dropna()
                 
-                df['HomeTeam'] = df['HomeTeam'].replace(team_name_mapper)
-                df['AwayTeam'] = df['AwayTeam'].replace(team_name_mapper)
-                
+                df['HomeTeam'] = df['HomeTeam'].apply(clean_team_string)
+                df['AwayTeam'] = df['AwayTeam'].apply(clean_team_string)
                 df['League'] = lg
                 combined_dfs.append(df)
         except Exception:
@@ -54,29 +68,27 @@ def download_football_data():
     if combined_dfs:
         return pd.concat(combined_dfs, ignore_index=True)
     else:
+        # Fallback dataset with valid default framework
         return pd.DataFrame({
             'HomeTeam': ['Bournemouth', 'Brentford', 'Coventry', 'Hull', 'Rayo Vallecano', 'AC Milan', 'Getafe', 'Arsenal', 'Chelsea', 'Union Berlin', 'Paris SG', 'Atletico Madrid', 'Real Sociedad'],
             'AwayTeam': ['Leeds', 'Nottm Forest', 'Sunderland', 'Ipswich', 'Celta', 'Inter Milan', 'Sevilla', 'Brighton', 'Everton', 'Cologne', 'Monaco', 'Elche', 'Valencia'],
-            'FTHG': [1.0] * 13, 
-            'FTAG': [1.0] * 13,
-            'FTR': ['D'] * 13,
-            'League': ['E0'] * 13
+            'FTHG': [1.0] * 13, 'FTAG': [1.0] * 13, 'FTR': ['D'] * 13, 'League': ['E0'] * 13
         })
 
 live_data = download_football_data()
 
 if live_data is not None:
-    fixed_targets = ['Union Berlin', 'Cologne', 'Paris SG', 'Monaco', 'Elche', 'Valencia', 'Atletico Madrid', 'Real Sociedad']
+    # Compile absolute dynamic universe of all football clubs
     scraped_names = list(set(live_data['HomeTeam'].unique()).union(set(live_data['AwayTeam'].unique())))
-    team_names = sorted(list(set(scraped_names + fixed_targets)))
+    
+    # Guarantee critical target validation names are injected cleanly
+    hard_targets = ['Union Berlin', 'Cologne', 'Paris SG', 'Monaco', 'Elche', 'Valencia', 'Atletico Madrid', 'Real Sociedad', 'Frosinone', 'Torino', 'Athletic Bilbao']
+    team_names = sorted(list(set(scraped_names + hard_targets)))
     
     def analyze_row_probability(df, home, away, odds_1, odds_x, odds_2):
         match_row = df[(df['HomeTeam'] == home) & (df['AwayTeam'] == away)]
-        if not match_row.empty:
-            lg_context = match_row['League'].iloc[0] if 'League' in match_row.columns else 'E0'
-            league_df = df[df['League'] == lg_context]
-        else:
-            league_df = df
+        lg_context = match_row['League'].iloc[0] if not match_row.empty and 'League' in match_row.columns else 'E0'
+        league_df = df[df['League'] == lg_context] if lg_context in df['League'].values else df
             
         avg_h_goals = max(league_df['FTHG'].mean(), 0.1)
         avg_a_goals = max(league_df['FTAG'].mean(), 0.1)
@@ -182,18 +194,3 @@ if live_data is not None:
                 updated_count = 0
                 for match in st.session_state.history_ledger:
                     if match["Result"] == "Pending":
-                        real_match = live_data[(live_data['HomeTeam'] == match['HomeTeam']) & (live_data['AwayTeam'] == match['AwayTeam'])]
-                        if not real_match.empty:
-                            raw_outcome = real_match['FTR'].iloc[-1]
-                            outcome_map = {'H': '1', 'D': 'X', 'A': '2'}
-                            true_result = outcome_map.get(raw_outcome, 'X')
-                            
-                            match["Result"] = f"Settled: [{true_result}]"
-                            active_stake = float(match["Kelly Stake"])
-                            active_odds = float(match["Odds"])
-                            
-                            if match["Pick"] == true_result:
-                                profit = active_stake * (active_odds - 1)
-                                st.session_state.wallet_balance += profit
-                            else:
-                                st.session_state.wallet_balance -= active_stake
