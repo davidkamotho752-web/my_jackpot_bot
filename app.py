@@ -20,13 +20,11 @@ if 'history_ledger' not in st.session_state:
 # 2. UNIVERSAL DYNAMIC LEAGUE FOOTPRINT SCRAPER WITH SPORTYBET DICTIONARY MAPPING
 @st.cache_data(ttl=3600)
 def download_football_data():
-    # Sourcing from historical season repositories
     leagues = ['E0', 'E1', 'SP1', 'SP2', 'D1', 'F1', 'I1']
     combined_dfs = []
     
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     
-    # Unified dictionary map to standardize data names with SportyBet layout ordering
     team_name_mapper = {
         'Ath Madrid': 'Atletico Madrid',
         'Ath Bilbao': 'Athletic Bilbao',
@@ -44,7 +42,6 @@ def download_football_data():
     }
     
     for lg in leagues:
-        # FIXED: Mapped explicit directory structure to fetch actual multi-league files cleanly
         url = f"https://football-data.co.uk{lg}.csv"
         try:
             response = requests.get(url, headers=headers, timeout=10)
@@ -52,7 +49,6 @@ def download_football_data():
                 df = pd.read_csv(io.StringIO(response.text))
                 df = df[['HomeTeam', 'AwayTeam', 'FTHG', 'FTAG']].dropna()
                 
-                # Apply standardization mapping definitions to teams
                 df['HomeTeam'] = df['HomeTeam'].replace(team_name_mapper)
                 df['AwayTeam'] = df['AwayTeam'].replace(team_name_mapper)
                 
@@ -65,7 +61,6 @@ def download_football_data():
         main_df = pd.concat(combined_dfs, ignore_index=True)
         return main_df
     else:
-        # Multi-league data matrices backup containing missing targeted team profiles
         return pd.DataFrame({
             'HomeTeam': ['Bournemouth', 'Brentford', 'Coventry', 'Hull', 'Rayo Vallecano', 'AC Milan', 'Getafe', 'Arsenal', 'Chelsea', 'Union Berlin', 'Paris SG', 'Atletico Madrid', 'Real Sociedad'],
             'AwayTeam': ['Leeds', 'Nottm Forest', 'Sunderland', 'Ipswich', 'Celta', 'Inter Milan', 'Sevilla', 'Brighton', 'Everton', 'Cologne', 'Monaco', 'Elche', 'Valencia'],
@@ -77,7 +72,6 @@ def download_football_data():
 live_data = download_football_data()
 
 if live_data is not None:
-    # Explicitly include verified missing target options to absolute dropdown selections
     fixed_targets = ['Union Berlin', 'Cologne', 'Paris SG', 'Monaco', 'Elche', 'Valencia', 'Atletico Madrid', 'Real Sociedad']
     scraped_names = list(set(live_data['HomeTeam'].unique()).union(set(live_data['AwayTeam'].unique())))
     team_names = sorted(list(set(scraped_names + fixed_targets)))
@@ -206,3 +200,10 @@ if live_data is not None:
                 target_outcome = outcome_map[actual_outcome]
                 
                 for match in st.session_state.history_ledger:
+                    if match["Slot"] == selected_slot:
+                        if match["Pick"] == target_outcome:
+                            net_win = match["Kelly Stake"] * (match["Odds"] - 1)
+                            st.session_state.wallet_balance += net_win
+                            st.success(f"Correct prediction on {match['Fixture']}! Practice bankroll credited with +KES {net_win:.2f}")
+                        else:
+                            st.session_state.wallet_balance -= match["Kelly Stake"]
