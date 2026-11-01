@@ -8,7 +8,7 @@ import sqlite3
 import os
 
 # 1. PLATFORM THEME & INFRASTRUCTURE CONFIGURATION
-st.set_page_config(page_title="SportyBet Global Scanner v5.0", layout="wide")
+st.set_page_config(page_title="SportyBet Global Scanner v5.1", layout="wide")
 
 st.markdown("""
     <style>
@@ -18,7 +18,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v5.0</h1></div>", unsafe_allow_html=True)
+st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v5.1</h1></div>", unsafe_allow_html=True)
 
 DB_FILE = "data/engine.db"
 os.makedirs("data", exist_ok=True)
@@ -55,8 +55,8 @@ init_database()
 if 'live_balance' not in st.session_state:
     conn = sqlite3.connect(DB_FILE)
     res = conn.execute("SELECT live_balance, paper_balance FROM bankroll ORDER BY id DESC LIMIT 1").fetchone()
-    st.session_state.live_balance = res if res else 1000.00
-    st.session_state.paper_balance = res if res else 1000.00
+    st.session_state.live_balance = res[0] if res else 1000.00
+    st.session_state.paper_balance = res[1] if res else 1000.00
     conn.close()
 
 # 2. DUAL-SOURCE HYBRID DATA PIPELINE WITH NORMALIZER
@@ -159,17 +159,15 @@ with tab_scanner:
     if st.button("🔍 Execute Global Market Scan"):
         st.write("Scanning network streams and stripping margins...")
         
-        # Pull upcoming match profiles from the most recent rows of data
         value_records = []
-        sampled_fixtures = live_data.tail(150) # Inspecting active upcoming lines
+        sampled_fixtures = live_data.tail(150) if live_data is not None else pd.DataFrame()
         
         for idx, row in sampled_fixtures.iterrows():
             home, away = row['HomeTeam'], row['AwayTeam']
-            # Run calculations using dynamic uniform baseline odds
             hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, 2.10, 3.20, 3.40)
             
             net_edge = edge - (0.20 * max(edge, 0))
-            if net_edge > 0.05: # Strict filter to show only edges greater than 5%
+            if net_edge > 0.05:
                 target_odds = 2.10 if pick == "1" else (3.20 if pick == "X" else 3.40)
                 lower_bound_prob = max(net_edge - 0.03, 0.01)
                 kelly_pct = (lower_bound_prob / (target_odds - 1)) * 0.125
@@ -198,7 +196,8 @@ with tab_jackpot:
     coupon_fixtures = []
     for i in range(13):
         st.markdown(f"**Row Slot #{i+1}**")
-        c1, c2, c3, c4, c5 = st.columns()
+        # FIX: Added required structural value (5) inside st.columns execution node parameter
+        c1, c2, c3, c4, c5 = st.columns(5)
         h_sel = c1.selectbox("Home (Top)", options=team_names, index=min(i, len(team_names)-1), key=f"jh_{i}")
         a_sel = c2.selectbox("Away (Bottom)", options=[t for t in team_names if t != h_sel], index=min(i+1, len(team_names)-2), key=f"ja_{i}")
         o1 = c3.number_input("Odds", min_value=1.01, value=2.20, key=f"jo1_{i}")
@@ -211,3 +210,4 @@ with tab_jackpot:
         slip_data = []
         for idx, (home, away, o1, ox, o2) in enumerate(coupon_fixtures, 1):
             hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, o1, ox, o2)
+            if edge > 0.08:
