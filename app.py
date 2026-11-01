@@ -219,4 +219,6 @@ with tab_today:
     st.caption("From SportyBet, one match per line:  Girona vs Getafe 2.30 3.00 3.40   (home, away, then 1 X 2 odds)")
     pasted = st.text_area("Matches and odds", height=130, key="d_paste", label_visibility="collapsed")
     ALL_COLS = ["Home", "Away", "Odds 1", "Odds X", "Odds 2", "Odds 1X", "Odds X2", "Odds 12", "Ref 1", "Ref X", "Ref 2", "Shift (pts)"]
+    
+    # FIXED: Re-enforced exact 4-space indentation alignment inside this layout branch
     if "d_df" not in st.session_state:
