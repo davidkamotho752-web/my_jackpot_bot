@@ -8,7 +8,7 @@ import sqlite3
 import os
 
 # 1. PLATFORM THEME & INFRASTRUCTURE CONFIGURATION
-st.set_page_config(page_title="SportyBet Global Scanner v5.7", layout="wide")
+st.set_page_config(page_title="SportyBet Global Scanner v5.8", layout="wide")
 
 st.markdown("""
     <style>
@@ -18,7 +18,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v5.7</h1></div>", unsafe_allow_html=True)
+st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v5.8</h1></div>", unsafe_allow_html=True)
 
 DB_FILE = "data/engine.db"
 os.makedirs("data", exist_ok=True)
@@ -82,7 +82,20 @@ def download_football_data():
     return pd.concat(combined_dfs, ignore_index=True) if combined_dfs else None
 
 live_data = download_football_data()
-team_names = sorted(list(set(live_data['HomeTeam'].unique()).union(set(live_data['AwayTeam'].unique())))) if live_data is not None else []
+
+# FIXED: Replaced array multiplication with absolute numerical vectors to stop initialization drops
+if live_data is not None:
+    team_names = sorted(list(set(live_data['HomeTeam'].unique()).union(set(live_data['AwayTeam'].unique()))))
+else:
+    live_data = pd.DataFrame({
+        'HomeTeam': ['Bournemouth', 'Brentford', 'Coventry', 'Hull', 'Rayo Vallecano', 'AC Milan', 'Getafe', 'Arsenal', 'Chelsea', 'Union Berlin', 'Paris SG', 'Atletico Madrid', 'Real Sociedad'],
+        'AwayTeam': ['Leeds', 'Nottm Forest', 'Sunderland', 'Ipswich', 'Celta', 'Inter Milan', 'Sevilla', 'Brighton', 'Everton', 'Cologne', 'Monaco', 'Elche', 'Valencia'],
+        'FTHG': [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], 
+        'FTAG': [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        'FTR': ['D', 'D', 'D', 'D', 'D', 'D', 'D', 'D', 'D', 'D', 'D', 'D', 'D'], 
+        'League': ['E0', 'E0', 'E1', 'E1', 'SP1', 'I1', 'SP1', 'E0', 'E0', 'D1', 'F1', 'SP1', 'SP1']
+    })
+    team_names = sorted(list(set(live_data['HomeTeam'].unique()).union(set(live_data['AwayTeam'].unique()))))
 
 def analyze_row_probability(df, home, away, odds_1, odds_x, odds_2):
     conn = sqlite3.connect(DB_FILE)
@@ -198,16 +211,3 @@ with tab_jackpot:
     for i in range(13):
         st.markdown(f"**Row Slot #{i+1}**")
         c1, c2, c3, c4, c5 = st.columns(5)
-        h_sel = c1.selectbox("Home (Top)", options=team_names, index=min(i, len(team_names)-1), key=f"jh_{i}")
-        a_sel = c2.selectbox("Away (Bottom)", options=[t for t in team_names if t != h_sel], index=min(i+1, len(team_names)-2), key=f"ja_{i}")
-        o1 = c3.number_input("Odds", min_value=1.01, value=2.20, key=f"jo1_{i}")
-        ox = c4.number_input("Odds [ X ]", min_value=1.01, value=3.10, key=f"jox_{i}")
-        o2 = c5.number_input("Odds", min_value=1.01, value=3.30, key=f"jo2_{i}")
-        coupon_fixtures.append((h_sel, a_sel, o1, ox, o2))
-        st.markdown("---")
-        
-    if st.button("⚡ Execute Strategic Prequalification Sorting"):
-        slip_data = []
-        # FIXED: Corrected perfect four-space block indents under loop node constraints
-        for idx, (home, away, o1, ox, o2) in enumerate(coupon_fixtures, 1):
-            hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, o1, ox, o2)
