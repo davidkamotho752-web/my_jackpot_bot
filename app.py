@@ -1,191 +1,185 @@
-import streamlit as st
-import pandas as pd
-import numpy as np
-import scipy.stats as stats
-import sqlite3
+"""Bet Engine - daily match analysis + Sporty 13 jackpot, with bankroll protection.
+Run:  streamlit run app.py
+"""
+import hashlib
+import json
 import os
+import tempfile
+from datetime import datetime
 
-# 1. PLATFORM INFRASTRUCTURE & PERSISTENCE SECURITY
-st.set_page_config(page_title="SportyBet Autonomous Scanner v12.0", layout="wide")
+import numpy as np
+import pandas as pd
+import streamlit as st
 
-st.markdown("""
-    <style>
-    .stApp { background-color: #1a1c1e; color: #ffffff; }
-    div[data-testid="stExpander"] { background-color: #23272a; border-radius: 8px; }
-    .sporty-header { background-color: #e61c24; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
-    </style> academic
-""", unsafe_allow_html=True)
+# Custom system path routing to match your modular architecture core folders
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-st.markdown("<div class='sporty-header'><h1>Automated SportyBet Autonomous Sweeper v12.0</h1></div>", unsafe_allow_html=True)
+from core import daily
+from core import engine as E
+from core import oddsapi
+from core import risk
+from core import store
 
-DB_FILE = "data/engine.db"
-os.makedirs("data", exist_ok=True)
+st.set_page_config(page_title="Bet Engine", layout="centered")
 
-def init_database():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS bankroll (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            live_balance REAL, paper_balance REAL
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS predictions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, match_name TEXT, home_team TEXT, away_team TEXT, 
-            selection TEXT, outcome TEXT, profit REAL, mode TEXT, league_code TEXT, resolved INTEGER DEFAULT 0
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS learning_weights (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, dixon_coles_weight REAL, ewm_span INTEGER, realised_log_loss REAL
-        )
-    """)
-    cursor.execute("SELECT COUNT(*) FROM bankroll")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO bankroll (live_balance, paper_balance) VALUES (2000.00, 2000.00)")
-        cursor.execute("INSERT INTO learning_weights (dixon_coles_weight, ewm_span, realised_log_loss) VALUES (1.025, 8, 0.412)")
-    conn.commit()
-    conn.close()
 
-init_database()
+# ----------------------------------------------------------------------------- resources
+@st.cache_resource
+def get_db():
+    path = os.environ.get("ENGINE_DB", "data/engine.db")
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    return store.DB(path)
 
-if 'live_balance' not in st.session_state:
-    conn = sqlite3.connect(DB_FILE)
-    res = conn.execute("SELECT live_balance, paper_balance FROM bankroll ORDER BY id DESC LIMIT 1").fetchone()
-    st.session_state.live_balance = res[0] if res else 2000.00
-    st.session_state.paper_balance = res[1] if res else 2000.00
-    conn.close()
 
-# DYNAMIC BASELINE LEAGUE DATACORE (ACTUAL HISTORICAL MOMENTUM RATIOS)
-live_data = pd.DataFrame({
-    'HomeTeam': ['Hull', 'Rayo Vallecano', 'AC Milan', 'Getafe', 'Arsenal', 'Chelsea', 'Union Berlin', 'Coventry', 'Bournemouth', 'Brentford', 'Liverpool', 'Man City', 'Aston Villa', 'Real Madrid', 'Barcelona', 'Bayern Munich', 'Dortmund', 'Juventus', 'Napoli', 'Paris SG'],
-    'AwayTeam': ['Ipswich', 'Celta', 'Inter Milan', 'Sevilla', 'Brighton', 'Everton', 'Cologne', 'Sunderland', 'Leeds', 'Nottm Forest', 'Newcastle', 'Tottenham', 'West Ham', 'Atletico Madrid', 'Valencia', 'Leipzig', 'Leverkusen', 'AC Milan', 'Roma', 'Monaco'],
-    'FTHG': [2.0, 1.0, 0.0, 1.0, 3.0, 2.0, 1.0, 1.0, 2.0, 1.0, 3.0, 4.0, 2.0, 3.0, 4.0, 2.0, 2.0, 1.0, 2.0, 3.0], 
-    'FTAG': [1.0, 2.0, 2.0, 1.0, 1.0, 0.0, 0.0, 2.0, 1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 1.0, 3.0, 0.0, 1.0, 1.0],
-    'FTR': ['H', 'A', 'A', 'D', 'H', 'H', 'H', 'A', 'H', 'D', 'H', 'H', 'H', 'H', 'H', 'H', 'A', 'H', 'H', 'H'], 
-    'League': ['E1', 'SP1', 'I1', 'SP1', 'E0', 'E0', 'D1', 'E1', 'E0', 'E0', 'E0', 'E0', 'E0', 'SP1', 'SP1', 'D1', 'D1', 'I1', 'I1', 'F1']
-})
-team_names = sorted(list(set(live_data['HomeTeam'].unique()).union(set(live_data['AwayTeam'].unique()))))
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def load_data():
+    return E.download_football_data(3)
 
-def analyze_row_probability(df, home, away, odds_1, odds_x, odds_2):
-    conn = sqlite3.connect(DB_FILE)
-    weights = conn.execute("SELECT dixon_coles_weight, ewm_span FROM learning_weights ORDER BY id DESC LIMIT 1").fetchone()
-    conn.close()
-    
-    dc_w = weights[0] if weights else 1.0
-    active_span = int(weights[1]) if weights else 8
-    
-    match_row = df[(df['HomeTeam'] == home) & (df['AwayTeam'] == away)]
-    lg_context = match_row['League'].iloc[0] if not match_row.empty else 'E0'
-    league_df = df[df['League'] == lg_context]
-    
-    avg_h_goals = max(league_df['FTHG'].mean(), 0.1)
-    avg_a_goals = max(league_df['FTAG'].mean(), 0.1)
-    
-    h_games = league_df[league_df['HomeTeam'] == home]
-    a_games = league_df[league_df['AwayTeam'] == away]
-    
-    if h_games.empty or a_games.empty:
-        h_base = sum([len(home), len(away)]) % 3
-        if h_base == 0: return 52.4, 26.1, 21.5, "1", 0.04, lg_context
-        elif h_base == 1: return 21.2, 28.4, 50.4, "2", 0.03, lg_context
-        else: return 24.3, 51.2, 24.5, "X", 0.02, lg_context
-        
-    h_atk = h_games['FTHG'].ewm(span=min(len(h_games), active_span)).mean().iloc[-1]
-    h_def = h_games['FTAG'].ewm(span=min(len(h_games), active_span)).mean().iloc[-1]
-    a_atk = a_games['FTAG'].ewm(span=min(len(a_games), active_span)).mean().iloc[-1]
-    a_def = a_games['FTHG'].ewm(span=min(len(a_games), active_span)).mean().iloc[-1]
-    
-    exp_h = (h_atk / avg_h_goals) * (a_def / avg_h_goals) * avg_h_goals * dc_w
-    exp_a = (a_atk / avg_a_goals) * (h_def / avg_a_goals) * avg_a_goals * dc_w
-    
-    matrix = np.outer(stats.poisson.pmf(range(10), exp_h), stats.poisson.pmf(range(10), exp_a))
-    matrix /= np.sum(matrix)
-    
-    hw = np.sum(np.tril(matrix, -1))
-    dr = np.sum(np.diag(matrix))
-    aw = np.sum(np.triu(matrix, 1))
-    
-    inv_sum = (1/odds_1) + (1/odds_x) + (1/odds_2)
-    true_p1 = (1/odds_1) / inv_sum
-    true_px = (1/odds_x) / inv_sum
-    true_p2 = (1/odds_2) / inv_sum
-    
-    ev_1 = (hw / true_p1) - 1 if true_p1 > 0 else -1
-    ev_x = (dr / true_px) - 1 if true_px > 0 else -1
-    ev_2 = (aw / true_p2) - 1 if true_p2 > 0 else -1
-    
-    ev_map = {"1": ev_1, "X": ev_x, "2": ev_2}
-    pick = max(ev_map, key=ev_map.get)
-    return hw*100, dr*100, aw*100, pick, ev_map[pick], lg_context
 
-# =====================================================================
-# 3. INTERFACE WORKSPACE RENDERING
-# =====================================================================
-st.sidebar.markdown("<h3 style='color: #e61c24;'>SPORTYBET PORTFOLIO</h3>", unsafe_allow_html=True)
-st.sidebar.metric("🟢 Live Sandbox Balance", f"KES {st.session_state.live_balance:,.2f}")
-st.sidebar.metric("📓 Paper Control Balance", f"KES {st.session_state.paper_balance:,.2f}")
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def load_models(data, xi):
+    return E.fit_all(data, xi)
 
-tab_scanner, tab_jackpot, tab_self_correct = st.tabs(["⚡ AUTONOMOUS VALUE SCANNER", "🏆 SPORTY 13 PREQUALIFIER", "⚙️ AUTO-CORRECTION CORE"])
 
-with tab_scanner:
-    st.markdown("### 🤖 Pre-Selected Leaderboard of Eligible Value Selections")
-    st.caption("Click the button below. The algorithm automatically runs proportional price calibration curves to output realistic market advantages.")
-    
-    if st.button("🔍 Run Autonomous Market Sweep"):
-        st.write("Executing matrix calculations across 19 leagues on autopilot...")
-        
-        leaderboard_data = []
-        for h_team in team_names:
-            for a_team in team_names:
-                if h_team == a_team: continue
-                
-                # FIXED: Implemented a Proportional Bookmaker Odds Generator to ensure realistic percentage scales
-                # Teams with higher historical baseline strength receive realistic lower odds weights automatically
-                h_strength = len(h_team)
-                a_strength = len(a_team)
-                if h_strength > a_strength:
-                    o1_calc, ox_calc, o2_calc = 1.45, 4.10, 6.50
-                elif h_strength < a_strength:
-                    o1_calc, ox_calc, o2_calc = 5.80, 3.90, 1.55
-                else:
-                    o1_calc, ox_calc, o2_calc = 2.60, 3.10, 2.70
-                
-                hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, h_team, a_team, o1_calc, ox_calc, o2_calc)
-                
-                # Flatten the edge value down to a realistic 1X2 distribution spectrum
-                calibrated_edge = max(min(edge * 0.05, 0.118), -0.15)
-                net_edge = calibrated_edge - (0.20 * max(calibrated_edge, 0))
-                
-                if net_edge > 0.01: # 1% net edge filter threshold
-                    target_odds = o1_calc if pick == "1" else (ox_calc if pick == "X" else o2_calc)
-                    kelly_pct = (net_edge / (target_odds - 1)) * 0.125
-                    allocated_stake = min(float(st.session_state.live_balance * kelly_pct), float(st.session_state.live_balance * 0.01))
-                    
-                    leaderboard_data.append({
-                        "Pre-Selected Fixture": f"{h_team} vs {a_team}",
-                        "League Link": lg,
-                        "Target Button to Tap": f"[{pick}]",
-                        "Net Advantage Edge": net_edge,
-                        "Optimized Sandbox Stake": allocated_stake,
-                        "Expected Gain if Win": allocated_stake * (target_odds - 1)
-                    })
-                    
-        if leaderboard_data:
-            sorted_df = pd.DataFrame(leaderboard_data).sort_values(by="Net Advantage Edge", ascending=False).head(12)
-            sorted_df["Net Advantage Edge"] = sorted_df["Net Advantage Edge"].apply(lambda x: f"+{x*100:.2f}%")
-            sorted_df["Optimized Sandbox Stake"] = sorted_df["Optimized Sandbox Stake"].apply(lambda x: f"KES {x:.2f}")
-            sorted_df["Expected Gain if Win"] = sorted_df["Expected Gain if Win"].apply(lambda x: f"KES {x:.2f}")
-            
-            st.dataframe(sorted_df, use_container_width=True, hide_index=True)
-            st.success("✅ Sweep complete! Realistic value configurations loaded. No typing required.")
+def kes(x):
+    return f"KES {x:,.0f}"
+
+
+db = get_db()
+now = store.now_local()
+if db.get("paper_init") is None:
+    risk.add_ledger(db, "PAPER", "deposit", 10000.0, "starting paper bankroll", now)
+    db.set("paper_init", True)
+risk.auto_drawdown_switch(db, now)
+mode = risk.get_mode(db)
+lim = risk.get_limits(db, now)
+tax = risk.get_tax(db)
+params = db.get("params", {"xi": 0.002, "w": 0.6})
+state = risk.bankroll_state(db, mode, now)
+gstat = risk.guard_status(state, lim)
+
+with st.spinner("Loading results (cached for 6 hours)..."):
+    data, failed = load_data()
+if data.empty:
+    models, team_league = {}, {}
+else:
+    with st.spinner("Fitting team-strength models (first run takes a minute or two)..."):
+        models = load_models(data, params["xi"])
+    team_league = E.team_league_map(data)
+
+# ----------------------------------------------------------------------------- header
+st.title("Bet Engine")
+c1, c2, c3 = st.columns(3)
+c1.metric("Mode", mode)
+c2.metric("Balance", kes(state["balance"]))
+c3.metric("Drawdown", f"{state['drawdown']:.1%}", f"stop at {lim['drawdown_pct']:.0%}", delta_color="off")
+if mode == "PAPER":
+    st.info("PAPER mode: recommendations are recorded but no real money is involved. LIVE unlocks only after the proof gate passes (Learning tab).")
+for reason in gstat["reasons"]:
+    st.error(reason + " No new bets are recommended.")
+if data.empty:
+    st.warning("Results could not be downloaded, so there is no model: every match will be SKIP. Check your internet connection.")
+
+tab_today, tab_jp, tab_bank, tab_learn = st.tabs(["Today", "Jackpot", "Bankroll", "Learning"])
+
+# ============================================================================= TODAY
+with tab_today:
+    st.subheader("1. Paste today's matches")
+    st.caption("From SportyBet, one match per line:  Girona vs Getafe 2.30 3.00 3.40   (home, away, then 1 X 2 odds)")
+    pasted = st.text_area("Matches and odds", height=130, key="d_paste", label_visibility="collapsed")
+    ALL_COLS = ["Home", "Away", "Odds 1", "Odds X", "Odds 2", "Odds 1X", "Odds X2", "Odds 12", "Over 2.5", "Under 2.5", "Shift (pts)"]
+    if "d_df" not in st.session_state:
+        st.session_state.d_df = pd.DataFrame({c: ([""] * 8 if c in ("Home", "Away") else [np.nan] * 8) for c in ALL_COLS})
+        st.session_state.d_ver = 0
+    if st.button("Load matches"):
+        rows, bad = E.parse_fixtures(pasted)
+        if rows:
+            df = pd.DataFrame(rows)
+            for c in ALL_COLS:
+                if c not in df.columns:
+                    df[c] = np.nan
+            st.session_state.d_df = df[ALL_COLS]
+            st.session_state.d_ver += 1
+        if bad:
+            st.warning("Could not read these lines:\n\n" + "\n".join(f"- {b}" for b in bad))
+        if not rows:
+            st.error("No valid lines. Format: Home vs Away 2.30 3.00 3.40")
+    more = st.checkbox("Also enter double chance and over/under 2.5 odds")
+    order = ALL_COLS if more else ["Home", "Away", "Odds 1", "Odds X", "Odds 2"]
+    cfg = {c: st.column_config.NumberColumn(c, min_value=1.01, format="%.2f") for c in ("Odds 1", "Odds X", "Odds 2", "Odds 1X", "Odds X2", "Odds 12", "Over 2.5", "Under 2.5")}
+    cfg["Shift (pts)"] = st.column_config.NumberColumn("Shift (pts)", min_value=-20.0, max_value=20.0, step=1.0)
+    edited = st.data_editor(st.session_state.d_df, key=f"d_ed_{st.session_state.d_ver}", num_rows="dynamic", column_order=order, column_config=cfg, hide_index=True)
+    st.session_state.d_df = edited
+
+    valid = edited[(edited["Home"].astype(str).str.strip() != "") & (edited["Away"].astype(str).str.strip() != "") & (edited[["Odds 1", "Odds X", "Odds 2"]].apply(pd.to_numeric, errors="coerce").fillna(0) > 1).all(axis=1)]
+
+    with st.expander("Optional: sharp reference odds (free API key, hard monthly budget)"):
+        st.caption("A sharp bookmaker's price is a better yardstick than SportyBet's own. The Odds API free plan gives 500 credits a month; this tool refuses to use more than the cap below. Get a key at the-odds-api.com. It is held only for this session and never saved.")
+        key = st.text_input("The Odds API key", type="password", value=os.environ.get("ODDS_API_KEY", ""))
+        cap = st.number_input("Monthly credit cap", 10, 500, oddsapi.DEFAULT_MONTHLY_CAP)
+        st.write(f"Credits used this month by this tool: **{oddsapi.credits_used(db, now)}** of {cap}")
+        if key and st.button("Load competitions (free)"):
+            try:
+                st.session_state.comps = oddsapi.list_soccer(key)
+            except Exception as e:
+                st.error(f"Could not load competitions: {e}")
+        comps = st.session_state.get("comps", [])
+        chosen = st.multiselect("Competitions to fetch (1 credit each)", [c[0] for c in comps], format_func=lambda k: dict(comps).get(k, k))
+        if key and chosen and st.button(f"Fetch odds ({len(chosen)} credits)"):
+            evs = []
+            for sk in chosen:
+                try:
+                    evs += oddsapi.fetch_h2h(db, key, sk, cap=int(cap), now=now)
+                except oddsapi.BudgetError as e:
+                    st.warning(str(e))
+                    break
+                except Exception as e:
+                    st.error(f"{sk}: {e}")
+            st.session_state.events = evs
+            st.success(f"Fetched {len(evs)} upcoming events.")
+
+    if valid.empty:
+        st.info("Add at least one match with 1 X 2 odds to see recommendations.")
+    else:
+        anchors = oddsapi.build_anchors(zip(valid["Home"], valid["Away"]), st.session_state.get("events", []))
+        ctx = daily.Context(models, team_league, params["w"], tax, lim, state["balance"], anchors)
+        results = [daily.analyse_match(r, ctx) for _, r in valid.iterrows()]
+        risk.apply_guards(results, state, lim)
+
+        st.subheader("2. Recommendations")
+        st.caption(f"{'Paper' if mode == 'PAPER' else 'Live'} stakes. Singles only. {state['bets_today']} of {lim['max_bets_day']} bets used today.")
+        table = []
+        for x in results:
+            table.append({
+                "Match": f"{x['home_in']} v {x['away_in']}", "Call": x["decision"],
+                "Pick": daily.SEL_LABEL.get(x["selection"], "-") if x["decision"] == "BET" else (f"best was {x['selection']}" if x["selection"] else "-"),
+                "Take if odds at least": f"{x['min_odds']:.2f}" if x["min_odds"] and x["decision"] == "BET" else "-",
+                "Stake": kes(x["stake"]) if x["decision"] == "BET" else "-",
+                "Net edge": f"{x['edge_low']:+.1%}" if x["selection"] else "-",
+                "Why": x["reason"],
+            })
+        st.dataframe(pd.DataFrame(table), hide_index=True)
+        bets = [x for x in results if x["decision"] == "BET"]
+        if bets:
+            lines = [f"{x['home_in']} vs {x['away_in']} | {daily.SEL_LABEL[x['selection']]} | take only if odds >= {x['min_odds']:.2f} | stake KES {x['stake']:.0f}" for x in bets]
+            st.markdown("**Slip to enter in SportyBet by hand**" + (" (paper: do not stake)" if mode == "PAPER" else ""))
+            st.code("\n".join(lines), language=None)
         else:
-            st.warning("No matches cleared the post-tax threshold lines right now.")
+            st.success("No bets today. SKIP is the expected answer most days.")
 
-with tab_jackpot:
-    st.markdown("### Sporty 13 Prequalifier & Lock Engine")
-    coupon_fixtures = []
-    for i in range(13):
-        st.markdown(f"**Row Slot #{i+1}**")
-        c1, c2, c3, c4, c5 = st.columns(5)
+        # FIXED: Decoded explicit vector indices [0, 1, 2] to unpack raw array calculations seamlessly without crashing
+        probs = pd.DataFrame([{"Match": f"{x['home_in']} v {x['away_in']}", "1 %": round(x["final"][0] * 100, 1), "X %": round(x["final"][1] * 100, 1), "2 %": round(x["final"][2] * 100, 1), "Reference": x["ref_source"], "Model": "yes" if x["model"] is not None else "no"} for x in results])
+        with st.expander("Probabilities and data used"):
+            st.dataframe(probs, hide_index=True)
+        with st.expander("Why so many SKIPs?"):
+            st.markdown(f"- A price is only worth taking if the model's cautious probability beats it by at least **{lim['min_edge']:.0%}** after allowing for uncertainty. SportyBet's margin fail this test.\n- Wallet must grow about **{daily.flow_hurdle(tax):.1%}** in total just to break even after cashing out under excise rules.\n- With no sharp reference, the model competes against the same bookmaker whose price you take.")
+
+        sig = hashlib.md5(json.dumps([[x["home_in"], x["away_in"], x["entered"]] for x in results], default=str).encode()).hexdigest() + now.strftime("%Y%m%d")
+        if st.button("Save this analysis to the log"):
+            if sig in st.session_state.get("saved_sigs", set()):
+                st.warning("This exact analysis was already saved today.")
+            else:
+                gid = "D" + now.strftime("%Y%m%d-%H%M%S")
+                daily.save_analysis(db, results, mode, gid, db.param_version(), now)
+                st.session_state.setdefault("saved_sigs", set()).add(sig)
