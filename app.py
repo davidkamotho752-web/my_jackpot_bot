@@ -4,6 +4,7 @@ Run:  streamlit run app.py
 import hashlib
 import json
 import os
+import sys
 import tempfile
 from datetime import datetime
 
@@ -11,12 +12,15 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-# FIXED: Replaced standard paths with relative dots to guide python directly inside your core directory folder
-from core import daily
-from core import engine as E
-from core import oddsapi
-from core import risk
-from core import store
+# SYSTEM ENVIRONMENT PATH REPAIR: Force python to find your unzipped files inside the core directory
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "core")))
+
+import daily
+import engine as E
+import oddsapi
+import risk
+import store
 
 st.set_page_config(page_title="Bet Engine", layout="centered")
 
@@ -181,6 +185,3 @@ with tab_today:
                 st.session_state.setdefault("saved_sigs", set()).add(sig)
                 st.success(f"Saved {len(results)} matches ({len(bets)} BET). They settle automatically in the Learning tab.")
 
-# ============================================================================= JACKPOT
-with tab_jp:
-    st.subheader("Sporty 13 jackpot")
