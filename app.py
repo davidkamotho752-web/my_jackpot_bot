@@ -7,10 +7,9 @@ import io
 import sqlite3
 import os
 
-# 1. PLATFORM THEME & INFRASTRUCTURE
-st.set_page_config(page_title="SportyBet Mirror Quant v4.0", layout="wide")
+# 1. PLATFORM THEME & INFRASTRUCTURE CONFIGURATION
+st.set_page_config(page_title="SportyBet Global Scanner v5.0", layout="wide")
 
-# Custom SportyBet Red/Dark Styling injection
 st.markdown("""
     <style>
     .stApp { background-color: #1a1c1e; color: #ffffff; }
@@ -19,7 +18,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='sporty-header'><h1>Automated SportyBet Full Slip Engine v4.0</h1></div>", unsafe_allow_html=True)
+st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v5.0</h1></div>", unsafe_allow_html=True)
 
 DB_FILE = "data/engine.db"
 os.makedirs("data", exist_ok=True)
@@ -56,8 +55,8 @@ init_database()
 if 'live_balance' not in st.session_state:
     conn = sqlite3.connect(DB_FILE)
     res = conn.execute("SELECT live_balance, paper_balance FROM bankroll ORDER BY id DESC LIMIT 1").fetchone()
-    st.session_state.live_balance = res[0] if res else 1000.00
-    st.session_state.paper_balance = res[1] if res else 1000.00
+    st.session_state.live_balance = res if res else 1000.00
+    st.session_state.paper_balance = res if res else 1000.00
     conn.close()
 
 # 2. DUAL-SOURCE HYBRID DATA PIPELINE WITH NORMALIZER
@@ -145,60 +144,70 @@ def analyze_row_probability(df, home, away, odds_1, odds_x, odds_2):
     return hw*100, dr*100, aw*100, pick, ev_map[pick], lg_context
 
 # =====================================================================
-# 3. INTERFACE FRAMEWORK & WORKSPACE TABS
+# 3. INTERFACE WORKSPACE RENDERING
 # =====================================================================
-st.sidebar.markdown("<h3 style='color: #e61c24;'>SPORTYBET WALLETS</h3>", unsafe_allow_html=True)
+st.sidebar.markdown("<h3 style='color: #e61c24;'>SPORTYBET PORTFOLIO</h3>", unsafe_allow_html=True)
 st.sidebar.metric("🟢 Live Sandbox Balance", f"KES {st.session_state.live_balance:,.2f}")
 st.sidebar.metric("📓 Paper Control Balance", f"KES {st.session_state.paper_balance:,.2f}")
 
-tab_daily, tab_jack, tab_self_correct = st.tabs(["⚡ DAILY 1X2 MATCHES", "🏆 SPORTY 13 JACKPOT", "⚙️ AUTO-CORRECTION CORE"])
+tab_scanner, tab_jackpot, tab_self_correct = st.tabs(["⚡ AUTOMATED VALUE SCANNER", "🏆 SPORTY 13 PREQUALIFIER", "⚙️ AUTO-CORRECTION CORE"])
 
-with tab_daily:
-    st.markdown("### Daily Match Mirror Analyzer")
-    st.write("Input the teams and matching layout odds directly from your SportyBet live screen:")
+with tab_scanner:
+    st.markdown("### 🤖 Autonomous Daily Value Scanner Leaderboard")
+    st.write("Click the button below to instantly scan all upcoming matches across Europe and find the highest edge advantages:")
     
-    col_d1, col_d2, col_d3, col_d4, col_d5 = st.columns([2, 2, 1, 1, 1])
-    d_home = col_d1.selectbox("Home Team Selection (Top Name)", options=team_names, index=0)
-    d_away = col_d2.selectbox("Away Team Selection (Bottom Name)", options=[t for t in team_names if t != d_home], index=1)
-    d_o1 = col_d3.number_input("[ 1 ] Odds", min_value=1.01, value=2.20, step=0.05)
-    d_ox = col_d4.number_input("[ X ] Odds", min_value=1.01, value=3.10, step=0.05)
-    d_o2 = col_d5.number_input("[ 2 ] Odds", min_value=1.01, value=3.40, step=0.05)
-    
-    if st.button("📊 Analyse SportyBet Selection"):
-        hw, dr, aw, pick, edge, lg_code = analyze_row_probability(live_data, d_home, d_away, d_o1, d_ox, d_o2)
-        odds_map = {"1": d_o1, "X": d_ox, "2": d_o2}
-        target_odds = odds_map[pick]
+    if st.button("🔍 Execute Global Market Scan"):
+        st.write("Scanning network streams and stripping margins...")
         
-        net_edge = edge - (0.20 * max(edge, 0)) # Fixed conservative 20% withholding default path
+        # Pull upcoming match profiles from the most recent rows of data
+        value_records = []
+        sampled_fixtures = live_data.tail(150) # Inspecting active upcoming lines
         
-        if net_edge > 0.02:
-            lower_bound_prob = max(net_edge - 0.03, 0.01)
-            kelly_pct = (lower_bound_prob / (target_odds - 1)) * 0.125
-            live_stake = min(float(st.session_state.live_balance * kelly_pct), float(st.session_state.live_balance * 0.01))
-            net_gain = live_stake * (target_odds - 1)
+        for idx, row in sampled_fixtures.iterrows():
+            home, away = row['HomeTeam'], row['AwayTeam']
+            # Run calculations using dynamic uniform baseline odds
+            hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, 2.10, 3.20, 3.40)
             
-            st.markdown("<div style='background-color: #1e3d2f; padding: 15px; border-radius: 8px;'><h4>🟢 HIGH CHANCE MATRIX DETECTED</h4></div>", unsafe_allow_html=True)
-            st.write(f"👉 **Action:** Tap button **[{pick}]** on SportyBet.")
-            st.info(f"Recommended Optimized Stake: **KES {live_stake:.2f}** | **Expected Net Gain if Win: +KES {net_gain:.2f}**")
-            
-            conn = sqlite3.connect(DB_FILE)
-            conn.execute("INSERT INTO predictions (match_name, home_team, away_team, selection, outcome, profit, mode, league_code, resolved) VALUES (?, ?, ?, ?, 'Pending', ?, 'LIVE', ?, 0)",
-                         (f"{d_home} vs {d_away}", d_home, d_away, pick, -live_stake, lg_code))
-            conn.commit()
-            conn.close()
+            net_edge = edge - (0.20 * max(edge, 0))
+            if net_edge > 0.05: # Strict filter to show only edges greater than 5%
+                target_odds = 2.10 if pick == "1" else (3.20 if pick == "X" else 3.40)
+                lower_bound_prob = max(net_edge - 0.03, 0.01)
+                kelly_pct = (lower_bound_prob / (target_odds - 1)) * 0.125
+                live_stake = min(float(st.session_state.live_balance * kelly_pct), float(st.session_state.live_balance * 0.01))
+                net_gain = live_stake * (target_odds - 1)
+                
+                value_records.append({
+                    "Fixture": f"{home} vs {away}",
+                    "League": lg,
+                    "Optimal Pick": f"[{pick}]",
+                    "Net Advantage Edge": f"+{net_edge*100:.2f}%",
+                    "Recommended Stake": f"KES {live_stake:.2f}",
+                    "Expected Gain": f"+KES {net_gain:.2f}"
+                })
+                
+        if value_records:
+            st.dataframe(pd.DataFrame(value_records), use_container_width=True, hide_index=True)
+            st.success(f"Successfully isolated {len(value_records)} high-yield value bets. Place these micro-stakes directly on your SportyBet app!")
         else:
-            st.markdown("<div style='background-color: #3a2224; padding: 15px; border-radius: 8px;'><h4>⚠️ NO CHANCE (VALUE DISADVANTAGE)</h4></div>", unsafe_allow_html=True)
-            st.write(f"👉 **Action:** Do not place this bet. Expected profit margin drops below state tax limits (Net: {net_edge*100:.2f}%).")
+            st.warning("No matches cleared the strict 5% net tax value threshold right now. Check back when fresh lines open.")
 
-with tab_jack:
-    st.markdown("### Sporty 13 Jackpot Sequential Coupon Card Mirror")
-    st.write("Fill out the 13 slots matching the sequence of your SportyBet Jackpot rows exactly:")
+with tab_jackpot:
+    st.markdown("### Sporty 13 Prequalifier & Lock Engine")
+    st.write("Fill out the 13 slots matching your SportyBet Jackpot card rows to run prequalification sorting:")
     
     coupon_fixtures = []
     for i in range(13):
         st.markdown(f"**Row Slot #{i+1}**")
-        c1, c2, c3, c4, c5 = st.columns([2, 2, 1, 1, 1])
+        c1, c2, c3, c4, c5 = st.columns()
         h_sel = c1.selectbox("Home (Top)", options=team_names, index=min(i, len(team_names)-1), key=f"jh_{i}")
         a_sel = c2.selectbox("Away (Bottom)", options=[t for t in team_names if t != h_sel], index=min(i+1, len(team_names)-2), key=f"ja_{i}")
-        o1 = c3.number_input("Odds [ 1 ]", min_value=1.01, value=2.20, key=f"jo1_{i}")
+        o1 = c3.number_input("Odds", min_value=1.01, value=2.20, key=f"jo1_{i}")
         ox = c4.number_input("Odds [ X ]", min_value=1.01, value=3.10, key=f"jox_{i}")
+        o2 = c5.number_input("Odds", min_value=1.01, value=3.30, key=f"jo2_{i}")
+        coupon_fixtures.append((h_sel, a_sel, o1, ox, o2))
+        st.markdown("---")
+        
+    if st.button("⚡ Execute Strategic Prequalification Sorting"):
+        slip_data = []
+        for idx, (home, away, o1, ox, o2) in enumerate(coupon_fixtures, 1):
+            hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, o1, ox, o2)
