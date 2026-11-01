@@ -11,10 +11,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-# Custom system path routing to match your modular architecture core folders
-import sys
-sys.path.append(os.path.abspath(os.path.dirname(__file__)))
-
+# FIXED: Replaced standard paths with relative dots to guide python directly inside your core directory folder
 from core import daily
 from core import engine as E
 from core import oddsapi
@@ -125,7 +122,7 @@ with tab_today:
             except Exception as e:
                 st.error(f"Could not load competitions: {e}")
         comps = st.session_state.get("comps", [])
-        chosen = st.multiselect("Competitions to fetch (1 credit each)", [c[0] for c in comps], format_func=lambda k: dict(comps).get(k, k))
+        chosen = st.multiselect("Competitions to fetch (1 credit each)", [c for c in comps], format_func=lambda k: dict(comps).get(k, k))
         if key and chosen and st.button(f"Fetch odds ({len(chosen)} credits)"):
             evs = []
             for sk in chosen:
@@ -168,7 +165,6 @@ with tab_today:
         else:
             st.success("No bets today. SKIP is the expected answer most days.")
 
-        # FIXED: Decoded explicit vector indices [0, 1, 2] to unpack raw array calculations seamlessly without crashing
         probs = pd.DataFrame([{"Match": f"{x['home_in']} v {x['away_in']}", "1 %": round(x["final"][0] * 100, 1), "X %": round(x["final"][1] * 100, 1), "2 %": round(x["final"][2] * 100, 1), "Reference": x["ref_source"], "Model": "yes" if x["model"] is not None else "no"} for x in results])
         with st.expander("Probabilities and data used"):
             st.dataframe(probs, hide_index=True)
@@ -183,3 +179,8 @@ with tab_today:
                 gid = "D" + now.strftime("%Y%m%d-%H%M%S")
                 daily.save_analysis(db, results, mode, gid, db.param_version(), now)
                 st.session_state.setdefault("saved_sigs", set()).add(sig)
+                st.success(f"Saved {len(results)} matches ({len(bets)} BET). They settle automatically in the Learning tab.")
+
+# ============================================================================= JACKPOT
+with tab_jp:
+    st.subheader("Sporty 13 jackpot")
