@@ -8,8 +8,8 @@ import sqlite3
 import os
 
 # 1. HARDEN APPLICATION INFRASTRUCTURE
-st.set_page_config(page_title="SportyBet Quant Machine v3.1", layout="wide")
-st.title("🤖 Autonomous SportyBet Reinforcement Quant Bot v3.1")
+st.set_page_config(page_title="SportyBet Quant Machine v3.2", layout="wide")
+st.title("🤖 Autonomous SportyBet Reinforcement Quant Bot v3.2")
 st.caption("System Status: Production Operational | Mode: Dampened Stochastic Gradient Feedback")
 st.markdown("---")
 
@@ -54,8 +54,8 @@ init_database()
 if 'live_balance' not in st.session_state:
     conn = sqlite3.connect(DB_FILE)
     res = conn.execute("SELECT live_balance, paper_balance FROM bankroll ORDER BY id DESC LIMIT 1").fetchone()
-    st.session_state.live_balance = res[0] if res else 1000.00
-    st.session_state.paper_balance = res[1] if res else 1000.00
+    st.session_state.live_balance = res if res else 1000.00
+    st.session_state.paper_balance = res if res else 1000.00
     conn.close()
 
 # 2. DUAL-SOURCE HYBRID DATA PIPELINE WITH NORMALIZER
@@ -106,9 +106,9 @@ def download_football_data():
                         rt_rows.append({
                             'HomeTeam': clean_team_string(match['team1']),
                             'AwayTeam': clean_team_string(match['team2']),
-                            'FTHG': int(match['score']['ft'][0]),
-                            'FTAG': int(match['score']['ft'][1]),
-                            'FTR': 'H' if match['score']['ft'][0] > match['score']['ft'][1] else ('A' if match['score']['ft'][1] > match['score']['ft'][0] else 'D'),
+                            'FTHG': int(match['score']['ft']),
+                            'FTAG': int(match['score']['ft']),
+                            'FTR': 'H' if match['score']['ft'] > match['score']['ft'] else ('A' if match['score']['ft'] > match['score']['ft'] else 'D'),
                             'League': 'E0'
                         })
             if rt_rows: combined_dfs.append(pd.DataFrame(rt_rows))
@@ -195,15 +195,19 @@ conn.close()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🤖 Self-Correction Tuning Parameters")
-# FIX: Added array coordinate indexes ([0], [1], [2]) to unroll tuple elements cleanly
-st.sidebar.write(f"Dynamic Model Multiplier: **{active_weights[0]:.4f}**")
-st.sidebar.write(f"Recency Weight Horizon: **{active_weights[1]} Matches**")
-st.sidebar.write(f"System Cross-Entropy Loss: **{active_weights[2]:.4f}**")
+if active_weights:
+    st.sidebar.write(f"Dynamic Model Multiplier: **{active_weights[0]:.4f}**")
+    st.sidebar.write(f"Recency Weight Horizon: **{active_weights[1]} Matches**")
+    st.sidebar.write(f"System Cross-Entropy Loss: **{active_weights[2]:.4f}**")
+else:
+    st.sidebar.write("Dynamic Model Multiplier: **1.0000**")
+    st.sidebar.write("Recency Weight Horizon: **8 Matches**")
+    st.sidebar.write("System Cross-Entropy Loss: **0.6931**")
 
 tab_daily, tab_jack, tab_risk, tab_self_correct = st.tabs(["⚽ TODAY (Daily Finder)", "🏆 JACKPOT (13-Slot)", "📊 BANKROLL AND RISK", "⚡ AUTONOMOUS SELF-CORRECTION CORE"])
 
 with tab_daily:
-    st.markdown("### Live Sandbox Single Bet Tracker")
+    st.markdown("### Live Sandbox Single Bet Finder")
     wht_win = st.slider("Withholding Tax on Profit (%)", 0, 30, 20)
     
     col_d1, col_d2, col_d3, col_d4, col_d5 = st.columns(5)
@@ -211,6 +215,3 @@ with tab_daily:
     d_away = col_d2.selectbox("Away Team", options=[t for t in team_names if t != d_home], index=1) if team_names else col_d2.text_input("Away")
     d_o1 = col_d3.number_input("Odds 1", min_value=1.01, value=2.20)
     d_ox = col_d4.number_input("Odds X", min_value=1.01, value=3.10)
-    d_o2 = col_d5.number_input("Odds 2", min_value=1.01, value=3.40)
-    
-    if st.button("Analyse Match"):
