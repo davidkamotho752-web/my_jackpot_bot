@@ -8,7 +8,7 @@ import sqlite3
 import os
 
 # 1. PLATFORM THEME & INFRASTRUCTURE CONFIGURATION
-st.set_page_config(page_title="SportyBet Global Scanner v5.1", layout="wide")
+st.set_page_config(page_title="SportyBet Global Scanner v5.2", layout="wide")
 
 st.markdown("""
     <style>
@@ -18,7 +18,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v5.1</h1></div>", unsafe_allow_html=True)
+st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v5.2</h1></div>", unsafe_allow_html=True)
 
 DB_FILE = "data/engine.db"
 os.makedirs("data", exist_ok=True)
@@ -55,8 +55,8 @@ init_database()
 if 'live_balance' not in st.session_state:
     conn = sqlite3.connect(DB_FILE)
     res = conn.execute("SELECT live_balance, paper_balance FROM bankroll ORDER BY id DESC LIMIT 1").fetchone()
-    st.session_state.live_balance = res[0] if res else 1000.00
-    st.session_state.paper_balance = res[1] if res else 1000.00
+    st.session_state.live_balance = res if res else 1000.00
+    st.session_state.paper_balance = res if res else 1000.00
     conn.close()
 
 # 2. DUAL-SOURCE HYBRID DATA PIPELINE WITH NORMALIZER
@@ -88,12 +88,12 @@ def analyze_row_probability(df, home, away, odds_1, odds_x, odds_2):
     weights = conn.execute("SELECT dixon_coles_weight, ewm_span FROM learning_weights ORDER BY id DESC LIMIT 1").fetchone()
     conn.close()
     
-    dc_w = weights[0] if weights else 1.0
-    active_span = int(weights[1]) if weights else 8
+    dc_w = weights if weights else 1.0
+    active_span = int(weights) if weights else 8
     
     if df is None: return 33.3, 33.3, 33.3, "X", 0.0, "E0"
     match_row = df[(df['HomeTeam'] == home) & (df['AwayTeam'] == away)]
-    lg_context = match_row['League'].iloc[0] if not match_row.empty else 'E0'
+    lg_context = match_row['League'].iloc if not match_row.empty else 'E0'
     league_df = df[df['League'] == lg_context]
     
     avg_h_goals = max(league_df['FTHG'].mean(), 0.1)
@@ -196,7 +196,6 @@ with tab_jackpot:
     coupon_fixtures = []
     for i in range(13):
         st.markdown(f"**Row Slot #{i+1}**")
-        # FIX: Added required structural value (5) inside st.columns execution node parameter
         c1, c2, c3, c4, c5 = st.columns(5)
         h_sel = c1.selectbox("Home (Top)", options=team_names, index=min(i, len(team_names)-1), key=f"jh_{i}")
         a_sel = c2.selectbox("Away (Bottom)", options=[t for t in team_names if t != h_sel], index=min(i+1, len(team_names)-2), key=f"ja_{i}")
@@ -210,4 +209,6 @@ with tab_jackpot:
         slip_data = []
         for idx, (home, away, o1, ox, o2) in enumerate(coupon_fixtures, 1):
             hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, o1, ox, o2)
+            # FIXED: Corrected indentation alignment spaces across all conditional logic branches
             if edge > 0.08:
+                strategy = "🔒 BANKER LOCK (Play Straight Single)"
