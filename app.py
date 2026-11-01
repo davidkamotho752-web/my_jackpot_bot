@@ -11,14 +11,14 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from core import backtest
-from core import budget
-from core import daily
-from core import engine as E
-from core import oddsapi
-from core import oddspapi
-from core import risk
-from core import store
+import backtest
+import budget
+import daily
+import engine as E
+import oddsapi
+import oddspapi
+import risk
+import store
 
 st.set_page_config(page_title="Bet Engine", layout="centered")
 
