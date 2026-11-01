@@ -8,7 +8,7 @@ import sqlite3
 import os
 
 # 1. PLATFORM THEME & INFRASTRUCTURE CONFIGURATION
-st.set_page_config(page_title="SportyBet Global Scanner v5.6", layout="wide")
+st.set_page_config(page_title="SportyBet Global Scanner v5.7", layout="wide")
 
 st.markdown("""
     <style>
@@ -18,7 +18,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v5.6</h1></div>", unsafe_allow_html=True)
+st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v5.7</h1></div>", unsafe_allow_html=True)
 
 DB_FILE = "data/engine.db"
 os.makedirs("data", exist_ok=True)
@@ -56,7 +56,6 @@ init_database()
 if 'live_balance' not in st.session_state:
     conn = sqlite3.connect(DB_FILE)
     res = conn.execute("SELECT live_balance, paper_balance FROM bankroll ORDER BY id DESC LIMIT 1").fetchone()
-    # FIXED: Explicitly indexed tuple coordinates to unpack the dual balances smoothly
     st.session_state.live_balance = res[0] if res else 1000.00
     st.session_state.paper_balance = res[1] if res else 1000.00
     conn.close()
@@ -90,7 +89,6 @@ def analyze_row_probability(df, home, away, odds_1, odds_x, odds_2):
     weights = conn.execute("SELECT dixon_coles_weight, ewm_span FROM learning_weights ORDER BY id DESC LIMIT 1").fetchone()
     conn.close()
     
-    # FIXED: Isolated tuple indexing to unroll learning coefficients cleanly
     dc_w = weights[0] if weights else 1.0
     active_span = int(weights[1]) if weights else 8
     
@@ -210,4 +208,6 @@ with tab_jackpot:
         
     if st.button("⚡ Execute Strategic Prequalification Sorting"):
         slip_data = []
+        # FIXED: Corrected perfect four-space block indents under loop node constraints
         for idx, (home, away, o1, ox, o2) in enumerate(coupon_fixtures, 1):
+            hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, o1, ox, o2)
