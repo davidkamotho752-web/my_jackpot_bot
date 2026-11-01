@@ -8,8 +8,8 @@ import sqlite3
 import os
 
 # 1. HARDEN APPLICATION INFRASTRUCTURE
-st.set_page_config(page_title="SportyBet Quant Machine v3.0", layout="wide")
-st.title("🤖 Autonomous SportyBet Reinforcement Quant Bot v3.0")
+st.set_page_config(page_title="SportyBet Quant Machine v3.1", layout="wide")
+st.title("🤖 Autonomous SportyBet Reinforcement Quant Bot v3.1")
 st.caption("System Status: Production Operational | Mode: Dampened Stochastic Gradient Feedback")
 st.markdown("---")
 
@@ -54,8 +54,8 @@ init_database()
 if 'live_balance' not in st.session_state:
     conn = sqlite3.connect(DB_FILE)
     res = conn.execute("SELECT live_balance, paper_balance FROM bankroll ORDER BY id DESC LIMIT 1").fetchone()
-    st.session_state.live_balance = res if res else 1000.00
-    st.session_state.paper_balance = res if res else 1000.00
+    st.session_state.live_balance = res[0] if res else 1000.00
+    st.session_state.paper_balance = res[1] if res else 1000.00
     conn.close()
 
 # 2. DUAL-SOURCE HYBRID DATA PIPELINE WITH NORMALIZER
@@ -68,9 +68,8 @@ def download_football_data():
     def clean_team_string(name):
         if not isinstance(name, str): return name
         name = name.strip().lower()
-        # Structural Jaro-Winkler character normalization sequence
         replacements = {
-            'ath madrid': 'atletico madrid', 'ath bilbao': 'athletic bilbao',
+            'ath madrid': 'atletico madrid', 'ath bilbao': 'athletic_bilbao',
             'sociedad': 'real sociedad', 'celta vigo': 'celta',
             'espanol': 'espanyol', 'vallecano': 'rayo vallecano',
             'un berlin': 'union berlin', 'koln': 'cologne', 'paris sg': 'paris sg',
@@ -107,9 +106,9 @@ def download_football_data():
                         rt_rows.append({
                             'HomeTeam': clean_team_string(match['team1']),
                             'AwayTeam': clean_team_string(match['team2']),
-                            'FTHG': int(match['score']['ft']),
-                            'FTAG': int(match['score']['ft']),
-                            'FTR': 'H' if match['score']['ft'] > match['score']['ft'] else ('A' if match['score']['ft'] > match['score']['ft'] else 'D'),
+                            'FTHG': int(match['score']['ft'][0]),
+                            'FTAG': int(match['score']['ft'][1]),
+                            'FTR': 'H' if match['score']['ft'][0] > match['score']['ft'][1] else ('A' if match['score']['ft'][1] > match['score']['ft'][0] else 'D'),
                             'League': 'E0'
                         })
             if rt_rows: combined_dfs.append(pd.DataFrame(rt_rows))
@@ -126,11 +125,11 @@ def analyze_row_probability(df, home, away, odds_1, odds_x, odds_2):
     weights = conn.execute("SELECT dixon_coles_weight, ewm_span FROM learning_weights ORDER BY id DESC LIMIT 1").fetchone()
     conn.close()
     
-    dc_w = weights if weights else 1.0
-    active_span = int(weights) if weights else 8
+    dc_w = weights[0] if weights else 1.0
+    active_span = int(weights[1]) if weights else 8
     
     match_row = df[(df['HomeTeam'] == home) & (df['AwayTeam'] == away)] if df is not None else pd.DataFrame()
-    lg_context = match_row['League'].iloc if not match_row.empty else 'E0'
+    lg_context = match_row['League'].iloc[0] if not match_row.empty else 'E0'
     league_df = df[df['League'] == lg_context] if df is not None else pd.DataFrame()
     
     avg_h_goals = max(league_df['FTHG'].mean(), 0.1) if not league_df.empty else 1.2
@@ -189,16 +188,17 @@ st.sidebar.metric("🟢 Live Sandbox Balance", f"KES {st.session_state.live_bala
 st.sidebar.metric("📓 Paper Control Balance", f"KES {st.session_state.paper_balance:,.2f}")
 
 conn = sqlite3.connect(DB_FILE)
-total_preds = conn.execute("SELECT COUNT(*) FROM predictions").fetchone()
-pending_count = conn.execute("SELECT COUNT(*) FROM predictions WHERE resolved = 0").fetchone()
+total_preds = conn.execute("SELECT COUNT(*) FROM predictions").fetchone()[0]
+pending_count = conn.execute("SELECT COUNT(*) FROM predictions WHERE resolved = 0").fetchone()[0]
 active_weights = conn.execute("SELECT dixon_coles_weight, ewm_span, realised_log_loss FROM learning_weights ORDER BY id DESC LIMIT 1").fetchone()
 conn.close()
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🤖 Self-Correction Tuning Parameters")
-st.sidebar.write(f"Dynamic Model Multiplier: **{active_weights:.4f}**")
-st.sidebar.write(f"Recency Weight Horizon: **{active_weights} Matches**")
-st.sidebar.write(f"System Cross-Entropy Loss: **{active_weights:.4f}**")
+# FIX: Added array coordinate indexes ([0], [1], [2]) to unroll tuple elements cleanly
+st.sidebar.write(f"Dynamic Model Multiplier: **{active_weights[0]:.4f}**")
+st.sidebar.write(f"Recency Weight Horizon: **{active_weights[1]} Matches**")
+st.sidebar.write(f"System Cross-Entropy Loss: **{active_weights[2]:.4f}**")
 
 tab_daily, tab_jack, tab_risk, tab_self_correct = st.tabs(["⚽ TODAY (Daily Finder)", "🏆 JACKPOT (13-Slot)", "📊 BANKROLL AND RISK", "⚡ AUTONOMOUS SELF-CORRECTION CORE"])
 
@@ -214,4 +214,3 @@ with tab_daily:
     d_o2 = col_d5.number_input("Odds 2", min_value=1.01, value=3.40)
     
     if st.button("Analyse Match"):
-        hw, dr, aw, pick, edge, lg_code = analyze_row_probability(live_data, d_home, d_away, d_o1, d_ox, d_o2)
