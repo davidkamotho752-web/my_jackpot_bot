@@ -6,7 +6,7 @@ import sqlite3
 import os
 
 # 1. PLATFORM THEME & INFRASTRUCTURE CONFIGURATION
-st.set_page_config(page_title="SportyBet Global Scanner v6.3", layout="wide")
+st.set_page_config(page_title="SportyBet Global Scanner v6.4", layout="wide")
 
 st.markdown("""
     <style>
@@ -16,7 +16,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v6.3</h1></div>", unsafe_allow_html=True)
+st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v6.4</h1></div>", unsafe_allow_html=True)
 
 DB_FILE = "data/engine.db"
 os.makedirs("data", exist_ok=True)
@@ -42,8 +42,8 @@ def init_database():
         )
     """)
     cursor.execute("SELECT COUNT(*) FROM bankroll")
-    row_count = cursor.fetchone()[0]
-    if row_count == 0:
+    row_count_tuple = cursor.fetchone()
+    if row_count_tuple and row_count_tuple[0] == 0:
         cursor.execute("INSERT INTO bankroll (live_balance, paper_balance) VALUES (1000.00, 1000.00)")
         cursor.execute("INSERT INTO learning_weights (dixon_coles_weight, ewm_span, realised_log_loss) VALUES (1.0, 8, 0.693)")
     conn.commit()
@@ -198,8 +198,8 @@ with tab_jackpot:
             hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, o1, ox, o2)
             strategy = "🔒 BANKER LOCK (Play Straight Single)" if edge > 0.06 else (f"🛡️ DOUBLE CHANCE COVERAGE ({pick}X if Draw or {pick})" if edge > 0.02 else "⚠️ HIGH VARIANCE (Avoid or Use Max Double Chance)")
                 
-            # FIXED: Properly structured dictionary block with closure characters intact
             slip_data.append({
                 "Jackpot Row": f"Slot {idx}",
                 "Fixture Matchup": f"{home} vs {away}",
                 "Advantage Edge": edge,
+                "Calculated Pick": f"[{pick}]",
