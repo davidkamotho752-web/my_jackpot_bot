@@ -5,18 +5,8 @@ import scipy.stats as stats
 import sqlite3
 import os
 
-# 1. PLATFORM THEME & INFRASTRUCTURE CONFIGURATION
-st.set_page_config(page_title="SportyBet Global Scanner v6.4", layout="wide")
-
-st.markdown("""
-    <style>
-    .stApp { background-color: #1a1c1e; color: #ffffff; }
-    div[data-testid="stExpander"] { background-color: #23272a; border-radius: 8px; }
-    .sporty-header { background-color: #e61c24; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
-    </style>
-""", unsafe_allow_html=True)
-
-st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v6.4</h1></div>", unsafe_allow_html=True)
+st.set_page_config(page_title="SportyBet Scanner v6.5", layout="wide")
+st.markdown("<div style='background-color:#e61c24;color:white;padding:15px;border-radius:8px;text-align:center;'><h1>Automated SportyBet Quant Machine v6.5</h1></div>", unsafe_allow_html=True)
 
 DB_FILE = "data/engine.db"
 os.makedirs("data", exist_ok=True)
@@ -24,26 +14,11 @@ os.makedirs("data", exist_ok=True)
 def init_database():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS bankroll (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            live_balance REAL, paper_balance REAL
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS predictions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, match_name TEXT, home_team TEXT, away_team TEXT, 
-            selection TEXT, outcome TEXT, profit REAL, mode TEXT, league_code TEXT, resolved INTEGER DEFAULT 0
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS learning_weights (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, dixon_coles_weight REAL, ewm_span INTEGER, realised_log_loss REAL
-        )
-    """)
+    cursor.execute("CREATE TABLE IF NOT EXISTS bankroll (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, live_balance REAL, paper_balance REAL)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS predictions (id INTEGER PRIMARY KEY AUTOINCREMENT, match_name TEXT, home_team TEXT, away_team TEXT, selection TEXT, outcome TEXT, profit REAL, mode TEXT, league_code TEXT, resolved INTEGER DEFAULT 0)")
+    cursor.execute("CREATE TABLE IF NOT EXISTS learning_weights (id INTEGER PRIMARY KEY AUTOINCREMENT, dixon_coles_weight REAL, ewm_span INTEGER, realised_log_loss REAL)")
     cursor.execute("SELECT COUNT(*) FROM bankroll")
-    row_count_tuple = cursor.fetchone()
-    if row_count_tuple and row_count_tuple[0] == 0:
+    if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO bankroll (live_balance, paper_balance) VALUES (1000.00, 1000.00)")
         cursor.execute("INSERT INTO learning_weights (dixon_coles_weight, ewm_span, realised_log_loss) VALUES (1.0, 8, 0.693)")
     conn.commit()
@@ -58,7 +33,6 @@ if 'live_balance' not in st.session_state:
     st.session_state.paper_balance = res[1] if res else 1000.00
     conn.close()
 
-# REALISTIC EUROPEAN BASELINE DATACORE
 live_data = pd.DataFrame({
     'HomeTeam': ['Hull', 'Rayo Vallecano', 'AC Milan', 'Getafe', 'Arsenal', 'Chelsea', 'Union Berlin', 'Coventry', 'Bournemouth', 'Brentford', 'Liverpool', 'Man City', 'Aston Villa'],
     'AwayTeam': ['Ipswich', 'Celta', 'Inter Milan', 'Sevilla', 'Brighton', 'Everton', 'Cologne', 'Sunderland', 'Leeds', 'Nottm Forest', 'Newcastle', 'Tottenham', 'West Ham'],
@@ -73,7 +47,6 @@ def analyze_row_probability(df, home, away, odds_1, odds_x, odds_2):
     conn = sqlite3.connect(DB_FILE)
     weights = conn.execute("SELECT dixon_coles_weight, ewm_span FROM learning_weights ORDER BY id DESC LIMIT 1").fetchone()
     conn.close()
-    
     dc_w = weights[0] if weights else 1.0
     active_span = int(weights[1]) if weights else 8
     
@@ -83,7 +56,6 @@ def analyze_row_probability(df, home, away, odds_1, odds_x, odds_2):
     
     avg_h_goals = max(league_df['FTHG'].mean(), 0.1)
     avg_a_goals = max(league_df['FTAG'].mean(), 0.1)
-    
     h_games = league_df[league_df['HomeTeam'] == home]
     a_games = league_df[league_df['AwayTeam'] == away]
     
@@ -108,10 +80,7 @@ def analyze_row_probability(df, home, away, odds_1, odds_x, odds_2):
     
     rho = -0.10
     if exp_h > 0 and exp_a > 0:
-        matrix *= (1 - exp_h * exp_a * rho)
-        matrix *= (1 + exp_h * rho)
-        matrix *= (1 + exp_a * rho)
-        matrix *= (1 - rho)
+        matrix *= (1 - exp_h * exp_a * rho) * (1 + exp_h * rho) * (1 + exp_a * rho) * (1 - rho)
     matrix = np.clip(matrix, 0, None)
     matrix /= np.sum(matrix)
     
@@ -124,17 +93,10 @@ def analyze_row_probability(df, home, away, odds_1, odds_x, odds_2):
     true_px = (1/odds_x) / inv_sum
     true_p2 = (1/odds_2) / inv_sum
     
-    ev_1 = (hw / true_p1) - 1 if true_p1 > 0 else -1
-    ev_x = (dr / true_px) - 1 if true_px > 0 else -1
-    ev_2 = (aw / true_p2) - 1 if true_p2 > 0 else -1
-    
-    ev_map = {"1": ev_1, "X": ev_x, "2": ev_2}
+    ev_map = {"1": (hw / true_p1) - 1, "X": (dr / true_px) - 1, "2": (aw / true_p2) - 1}
     pick = max(ev_map, key=ev_map.get)
     return hw*100, dr*100, aw*100, pick, ev_map[pick], lg_context
 
-# =====================================================================
-# 3. INTERFACE WORKSPACE RENDERING
-# =====================================================================
 st.sidebar.markdown("<h3 style='color: #e61c24;'>SPORTYBET PORTFOLIO</h3>", unsafe_allow_html=True)
 st.sidebar.metric("🟢 Live Sandbox Balance", f"KES {st.session_state.live_balance:,.2f}")
 st.sidebar.metric("📓 Paper Control Balance", f"KES {st.session_state.paper_balance:,.2f}")
@@ -143,43 +105,24 @@ tab_scanner, tab_jackpot, tab_self_correct = st.tabs(["⚡ AUTOMATED VALUE SCANN
 
 with tab_scanner:
     st.markdown("### 🤖 Autonomous Daily Value Scanner Leaderboard")
-    st.write("Click the button below to instantly scan all matches and isolate realistic edge distributions:")
-    
     if st.button("🔍 Execute Global Market Scan"):
-        st.write("Scanning database tracks and stripping margins...")
-        
         value_records = []
         for idx, row in live_data.iterrows():
             home, away = row['HomeTeam'], row['AwayTeam']
             hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, 2.10, 3.20, 3.40)
-            
             net_edge = edge - (0.20 * max(edge, 0))
             if net_edge > 0.01:
                 target_odds = 2.10 if pick == "1" else (3.20 if pick == "X" else 3.40)
-                lower_bound_prob = max(net_edge - 0.01, 0.01)
-                kelly_pct = (lower_bound_prob / (target_odds - 1)) * 0.125
+                kelly_pct = (max(net_edge - 0.01, 0.01) / (target_odds - 1)) * 0.125
                 live_stake = min(float(st.session_state.live_balance * kelly_pct), float(st.session_state.live_balance * 0.01))
-                net_gain = live_stake * (target_odds - 1)
-                
-                value_records.append({
-                    "Fixture": f"{home} vs {away}",
-                    "League": lg,
-                    "Optimal Pick": f"[{pick}]",
-                    "Net Advantage Edge": f"+{net_edge*100:.2f}%",
-                    "Recommended Stake": f"KES {live_stake:.2f}",
-                    "Expected Gain": f"+KES {net_gain:.2f}"
-                })
-                
+                value_records.append({"Fixture": f"{home} vs {away}", "League": lg, "Optimal Pick": f"[{pick}]", "Net Advantage Edge": f"+{net_edge*100:.2f}%", "Recommended Stake": f"KES {live_stake:.2f}", "Expected Gain": f"+KES {live_stake * (target_odds - 1):.2f}"})
         if value_records:
             st.dataframe(pd.DataFrame(value_records), use_container_width=True, hide_index=True)
-            st.success("✅ Market Scan Complete. Highly realistic individual values generated.")
         else:
-            st.warning("No matches cleared the limits right now. Refresh the script matrices.")
+            st.warning("No matches cleared the limits right now.")
 
 with tab_jackpot:
     st.markdown("### Sporty 13 Prequalifier & Lock Engine")
-    st.write("Fill out the 13 slots matching your SportyBet Jackpot card rows to run prequalification sorting:")
-    
     coupon_fixtures = []
     for i in range(13):
         st.markdown(f"**Row Slot #{i+1}**")
@@ -197,9 +140,23 @@ with tab_jackpot:
         for idx, (home, away, o1, ox, o2) in enumerate(coupon_fixtures, 1):
             hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, o1, ox, o2)
             strategy = "🔒 BANKER LOCK (Play Straight Single)" if edge > 0.06 else (f"🛡️ DOUBLE CHANCE COVERAGE ({pick}X if Draw or {pick})" if edge > 0.02 else "⚠️ HIGH VARIANCE (Avoid or Use Max Double Chance)")
-                
-            slip_data.append({
-                "Jackpot Row": f"Slot {idx}",
-                "Fixture Matchup": f"{home} vs {away}",
-                "Advantage Edge": edge,
-                "Calculated Pick": f"[{pick}]",
+            slip_data.append({"Jackpot Row": f"Slot {idx}", "Fixture Matchup": f"{home} vs {away}", "Advantage Edge": edge, "Calculated Pick": f"[{pick}]", "Strategic Play Recommendation": strategy})
+        sorted_df = pd.DataFrame(slip_data).sort_values(by="Advantage Edge", ascending=False)
+        sorted_df["Advantage Edge"] = sorted_df["Advantage Edge"].apply(lambda x: f"+{x*100:.1f}%")
+        st.dataframe(sorted_df, use_container_width=True, hide_index=True)
+
+with tab_self_correct:
+    st.markdown("### ⚙️ AUTO-CORRECTION CORE")
+    if st.button("🔵 Run Retrospective Learning Loop"):
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM predictions")
+        for idx, row in live_data.iterrows():
+            home, away = row['HomeTeam'], row['AwayTeam']
+            hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, 2.0, 3.0, 3.0)
+            status = "Won" if pick == row['FTR'] else "Lost"
+            cursor.execute("INSERT INTO predictions (match_name, home_team, away_team, selection, outcome, profit, mode, league_code, resolved) VALUES (?, ?, ?, ?, ?, ?, 'PAPER', ?, 1)", (f"{home} vs {away}", home, away, pick, status, 20.0 if status == "Won" else -20.0, lg))
+        conn.commit()
+        conn.close()
+        st.success("✅ Dynamic baseline initialization complete! Portfolios initialized successfully.")
+        st.rerun()
