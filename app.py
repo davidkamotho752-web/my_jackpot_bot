@@ -8,7 +8,7 @@ import sqlite3
 import os
 
 # 1. PLATFORM THEME & INFRASTRUCTURE CONFIGURATION
-st.set_page_config(page_title="SportyBet Global Scanner v5.2", layout="wide")
+st.set_page_config(page_title="SportyBet Global Scanner v5.3", layout="wide")
 
 st.markdown("""
     <style>
@@ -18,7 +18,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v5.2</h1></div>", unsafe_allow_html=True)
+st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v5.3</h1></div>", unsafe_allow_html=True)
 
 DB_FILE = "data/engine.db"
 os.makedirs("data", exist_ok=True)
@@ -209,6 +209,6 @@ with tab_jackpot:
         slip_data = []
         for idx, (home, away, o1, ox, o2) in enumerate(coupon_fixtures, 1):
             hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, o1, ox, o2)
-            # FIXED: Corrected indentation alignment spaces across all conditional logic branches
             if edge > 0.08:
                 strategy = "🔒 BANKER LOCK (Play Straight Single)"
+            elif edge > 0.02:
