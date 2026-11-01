@@ -6,7 +6,7 @@ import sqlite3
 import os
 
 # 1. PLATFORM THEME & INFRASTRUCTURE CONFIGURATION
-st.set_page_config(page_title="SportyBet Global Scanner v6.2", layout="wide")
+st.set_page_config(page_title="SportyBet Global Scanner v6.3", layout="wide")
 
 st.markdown("""
     <style>
@@ -16,7 +16,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v6.2</h1></div>", unsafe_allow_html=True)
+st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v6.3</h1></div>", unsafe_allow_html=True)
 
 DB_FILE = "data/engine.db"
 os.makedirs("data", exist_ok=True)
@@ -58,7 +58,7 @@ if 'live_balance' not in st.session_state:
     st.session_state.paper_balance = res[1] if res else 1000.00
     conn.close()
 
-# FIXED: Fully populated rows with numbers to clear the SyntaxError crash natively
+# REALISTIC EUROPEAN BASELINE DATACORE
 live_data = pd.DataFrame({
     'HomeTeam': ['Hull', 'Rayo Vallecano', 'AC Milan', 'Getafe', 'Arsenal', 'Chelsea', 'Union Berlin', 'Coventry', 'Bournemouth', 'Brentford', 'Liverpool', 'Man City', 'Aston Villa'],
     'AwayTeam': ['Ipswich', 'Celta', 'Inter Milan', 'Sevilla', 'Brighton', 'Everton', 'Cologne', 'Sunderland', 'Leeds', 'Nottm Forest', 'Newcastle', 'Tottenham', 'West Ham'],
@@ -198,8 +198,8 @@ with tab_jackpot:
             hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, o1, ox, o2)
             strategy = "🔒 BANKER LOCK (Play Straight Single)" if edge > 0.06 else (f"🛡️ DOUBLE CHANCE COVERAGE ({pick}X if Draw or {pick})" if edge > 0.02 else "⚠️ HIGH VARIANCE (Avoid or Use Max Double Chance)")
                 
+            # FIXED: Properly structured dictionary block with closure characters intact
             slip_data.append({
                 "Jackpot Row": f"Slot {idx}",
                 "Fixture Matchup": f"{home} vs {away}",
                 "Advantage Edge": edge,
-                "Calculated Pick": f"[{pick}]",
