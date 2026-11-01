@@ -8,7 +8,7 @@ import sqlite3
 import os
 
 # 1. PLATFORM THEME & INFRASTRUCTURE CONFIGURATION
-st.set_page_config(page_title="SportyBet Global Scanner v5.4", layout="wide")
+st.set_page_config(page_title="SportyBet Global Scanner v5.6", layout="wide")
 
 st.markdown("""
     <style>
@@ -18,7 +18,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v5.4</h1></div>", unsafe_allow_html=True)
+st.markdown("<div class='sporty-header'><h1>Automated SportyBet Quant Machine v5.6</h1></div>", unsafe_allow_html=True)
 
 DB_FILE = "data/engine.db"
 os.makedirs("data", exist_ok=True)
@@ -44,7 +44,8 @@ def init_database():
         )
     """)
     cursor.execute("SELECT COUNT(*) FROM bankroll")
-    if cursor.fetchone() == 0:
+    row_count = cursor.fetchone()[0]
+    if row_count == 0:
         cursor.execute("INSERT INTO bankroll (live_balance, paper_balance) VALUES (1000.00, 1000.00)")
         cursor.execute("INSERT INTO learning_weights (dixon_coles_weight, ewm_span, realised_log_loss) VALUES (1.0, 8, 0.693)")
     conn.commit()
@@ -55,8 +56,9 @@ init_database()
 if 'live_balance' not in st.session_state:
     conn = sqlite3.connect(DB_FILE)
     res = conn.execute("SELECT live_balance, paper_balance FROM bankroll ORDER BY id DESC LIMIT 1").fetchone()
-    st.session_state.live_balance = res if res else 1000.00
-    st.session_state.paper_balance = res if res else 1000.00
+    # FIXED: Explicitly indexed tuple coordinates to unpack the dual balances smoothly
+    st.session_state.live_balance = res[0] if res else 1000.00
+    st.session_state.paper_balance = res[1] if res else 1000.00
     conn.close()
 
 # 2. DUAL-SOURCE HYBRID DATA PIPELINE WITH NORMALIZER
@@ -88,12 +90,13 @@ def analyze_row_probability(df, home, away, odds_1, odds_x, odds_2):
     weights = conn.execute("SELECT dixon_coles_weight, ewm_span FROM learning_weights ORDER BY id DESC LIMIT 1").fetchone()
     conn.close()
     
-    dc_w = weights if weights else 1.0
-    active_span = int(weights) if weights else 8
+    # FIXED: Isolated tuple indexing to unroll learning coefficients cleanly
+    dc_w = weights[0] if weights else 1.0
+    active_span = int(weights[1]) if weights else 8
     
     if df is None: return 33.3, 33.3, 33.3, "X", 0.0, "E0"
     match_row = df[(df['HomeTeam'] == home) & (df['AwayTeam'] == away)]
-    lg_context = match_row['League'].iloc if not match_row.empty else 'E0'
+    lg_context = match_row['League'].iloc[0] if not match_row.empty else 'E0'
     league_df = df[df['League'] == lg_context]
     
     avg_h_goals = max(league_df['FTHG'].mean(), 0.1)
@@ -208,6 +211,3 @@ with tab_jackpot:
     if st.button("⚡ Execute Strategic Prequalification Sorting"):
         slip_data = []
         for idx, (home, away, o1, ox, o2) in enumerate(coupon_fixtures, 1):
-            hw, dr, aw, pick, edge, lg = analyze_row_probability(live_data, home, away, o1, ox, o2)
-            
-            # FIXED: Flattened conditional structures into safe, zero-indentation inline matrices to completely stop syntax errors
