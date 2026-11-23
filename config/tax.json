@@ -1,0 +1,21 @@
+{
+  "active": "kenya_2025",
+  "regimes": {
+    "kenya_2025": {
+      "description": "Finance Act 2025: 5% excise on deposit, 5% withholding on withdrawal, no winnings tax",
+      "deposit_excise": 0.05,
+      "withdrawal_wht": 0.05,
+      "winnings_wht": 0.0,
+      "effective_from": "2025-07-01",
+      "source_note": "Verify with KRA before LIVE mode"
+    },
+    "kenya_2026_proposed": {
+      "description": "Proposed 2026: 20% winnings withholding reinstated (GRA has opposed)",
+      "deposit_excise": 0.05,
+      "withdrawal_wht": 0.05,
+      "winnings_wht": 0.20,
+      "effective_from": "2026-07-01",
+      "source_note": "Not active. Toggle only if Finance Act 2026 passes"
+    }
+  }
+}
