@@ -9,12 +9,13 @@ import core.tax as tax
 import core.camouflage as camo
 import core.settle as settle
 import core.team_resolve as team_resolve
+
+# Auto-initialize the cloud database
 try:
     from db_init import main as init_db
     init_db()
 except Exception:
     pass
-
 
 st.set_page_config(page_title="Bet Engine", layout="wide", initial_sidebar_state="collapsed")
 
@@ -25,15 +26,31 @@ with st.sidebar:
     st.header("Controls")
     mode = st.radio("Mode", ["PAPER", "LIVE"], index=0)
     st.markdown("---")
+    
     if st.button("Refresh Upcoming Fixtures"):
         with st.spinner("Downloading latest matches..."):
-            df = fixtures.download(days_back=0, max_seasons=1)
+            df = pd.DataFrame()
+            
+            # 1. Try Live API first
+            try:
+                import core.live_api as live_api
+                df = live_api.fetch_live_fixtures()
+            except Exception as e:
+                pass
+            
+            # 2. Fallback to CSV if API fails or is empty
+            if df.empty:
+                try:
+                    df = fixtures.download(days_back=0, max_seasons=1)
+                except Exception as e:
+                    st.error(f"Error downloading CSV: {e}")
+            
             if not df.empty:
                 predict.run(df, source="manual")
-                st.success("Data updated and upcoming predictions generated!")
+                st.success(f"Loaded {len(df)} matches and generated predictions!")
             else:
-                st.error("No upcoming fixtures found in the free database right now.")
-                
+                st.error("No upcoming fixtures found in either source.")
+
     if st.button("Settle Results"):
         with st.spinner("Checking ESPN for final scores..."):
             n = settle.settle_all()
@@ -67,14 +84,17 @@ with tab1:
             for _, b in bets.iterrows():
                 bet_dict = b.to_dict()
                 action = camo.required_action(bet_dict, len(bets), 0)
-                # Shows exact Date and Time
                 st.info(f"**{b['match_date']}** | **{b['home']} vs {b['away']}** | {b['selection']} | Odds: {b['odds']:.2f} | {action}")
 
 with tab2:
     st.header("Sporty 13 Jackpot")
     with st.expander("ℹ️ How to use this / Why this matters"):
-        st.write("Paste the 13 matches from SportyBet here. The engine builds the best ticket.")
-    st.text_area("Paste 13 matches here (coming soon):", height=150, disabled=True)
+        st.write("Paste the 13 matches from SportyBet here to build a ticket.")
+        
+    jackpot_input = st.text_area("Paste 13 matches here (Format: Home vs Away 1 X 2):", height=250)
+    
+    if jackpot_input:
+        st.success("Matches loaded! Ticket builder logic coming in V2.")
 
 with tab3:
     st.header("Learning & Post-Mortem")
@@ -83,6 +103,12 @@ with tab3:
 with tab4:
     st.header("Bankroll & Camouflage")
     st.metric("Current Paper Balance", f"KES {float(db.get('bankroll', 5000)):,.0f}")
+    st.subheader("Camouflage Log")
+    camo_log = db.q("SELECT * FROM camouflage_log ORDER BY id DESC LIMIT 5")
+    if camo_log:
+        st.dataframe(pd.DataFrame(camo_log)[['created', 'match', 'stake', 'reason']])
+    else:
+        st.caption("No camouflage bets logged yet.")
 
 with tab5:
     st.header("Tipsters & Tracking")
