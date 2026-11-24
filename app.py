@@ -9,6 +9,12 @@ import core.tax as tax
 import core.camouflage as camo
 import core.settle as settle
 import core.team_resolve as team_resolve
+try:
+    from db_init import main as init_db
+    init_db()
+except Exception:
+    pass
+
 
 st.set_page_config(page_title="Bet Engine", layout="wide", initial_sidebar_state="collapsed")
 
