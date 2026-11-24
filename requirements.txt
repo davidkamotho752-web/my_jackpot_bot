@@ -3,3 +3,4 @@ numpy
 requests
 streamlit
 python-dateutil
+fivedollarfootball
