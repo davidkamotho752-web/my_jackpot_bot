@@ -4,12 +4,16 @@ import requests
 from datetime import datetime
 
 def fetch_live_fixtures():
+    """Try multiple free APIs to find matches, falling back until one works."""
     df = _fetch_5dollar()
     if not df.empty: return df
+        
     df = _fetch_api_football()
     if not df.empty: return df
+
     df = _fetch_espn()
     if not df.empty: return df
+
     return pd.DataFrame()
 
 def _fetch_5dollar():
@@ -75,11 +79,8 @@ def _fetch_espn():
                 h_team = teams[0].get("team", {}).get("displayName", "")
                 a_team = teams[1].get("team", {}).get("displayName", "")
                 rows.append({
-                    "HomeTeam": h_team,
-                    "AwayTeam": a_team,
-                    "League": league,
-                    "Date": event.get("date"),
-                    "B365H": None, "B365D": None, "B365A": None
+                    "HomeTeam": h_team, "AwayTeam": a_team, "League": league,
+                    "Date": event.get("date"), "B365H": None, "B365D": None, "B365A": None
                 })
         except Exception: continue
     return pd.DataFrame(rows)
